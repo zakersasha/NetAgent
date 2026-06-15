@@ -1,0 +1,20 @@
+services:
+  xray-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.xray-agent
+    environment:
+      XRAY_CONFIG_PATH: /usr/local/etc/xray/config.json
+      XRAY_INBOUND_TAG: vless-reality-in
+      XRAY_MAX_USERS: "50"
+      XRAY_RELOAD_CMD: "${XRAY_RELOAD_CMD:-}"
+      XRAY_PUBLIC_HOST: 45.93.137.80
+      AGENT_API_KEY: "${AGENT_API_KEY:-change-me}"
+      AGENT_ALLOWED_IPS: 37.230.114.25
+      AGENT_PORT: "8443"
+      REALITY_PUBLIC_KEY: "${REALITY_PUBLIC_KEY:-}"
+    ports:
+      - "8443:8443"
+    volumes:
+      - /usr/local/etc/xray/config.json:/usr/local/etc/xray/config.json
+      - ./certs:/certs:ro
