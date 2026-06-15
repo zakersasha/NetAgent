@@ -15,5 +15,19 @@ services:
       timeout: 5s
       retries: 5
 
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bot
+    environment:
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-mock-token}"
+      PAYMENT_PROVIDER: mock
+      BOT_SERVICE_NAME: "${BOT_SERVICE_NAME:-NetAgent VPN}"
+      BOT_SUPPORT_CONTACT: "${BOT_SUPPORT_CONTACT:-Поддержка будет добавлена позже}"
+      TIMEZONE: Europe/Moscow
+      XRAY_PUBLIC_HOST: 45.93.137.80
+    profiles:
+      - bot
+
 volumes:
   postgres_data:
