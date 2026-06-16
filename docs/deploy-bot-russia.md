@@ -35,16 +35,32 @@ source .env
 curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe"
 ```
 
-## 5. Сейчас (mock)
+## 5. Прокси (сервер в РФ)
+
+Telegram API из России часто недоступен. В `.env`:
+
+```env
+BOT_PROXY_URL=http://user:pass@45.93.137.80:3128
+```
+
+Проверка с сервера:
+
+```bash
+source .env
+curl -x "$BOT_PROXY_URL" -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe"
+```
+
+## 6. Сейчас (mock)
 
 - Оплата тестовая, без ЮKassa.
 - Подписки в памяти — после `docker compose down` сбрасываются.
 - Ключ в боте **mock** — в Xray на Литве client ещё не создаётся.
 
-## 6. Если бот падает
+## 7. Если бот падает
 
 | Ошибка | Решение |
 |--------|---------|
 | `TELEGRAM_BOT_TOKEN в .env` | Заполнить `.env`, не оставлять пустой и не `mock-token` |
+| `Request timeout` | Задать `BOT_PROXY_URL` в `.env` |
 | `Unauthorized` | Неверный токен |
 | Бот не отвечает | `docker compose logs -f bot` |
