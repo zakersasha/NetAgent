@@ -48,6 +48,9 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
     @router.callback_query(lambda query: query.data and query.data.startswith("mockpay:"))
     async def mock_payment(callback: CallbackQuery) -> None:
         plan_slug = callback.data.split(":", 1)[1]
+        await callback.answer("Активирую подписку...")
+        await callback.message.edit_text("Оплата прошла. Добавляю ключ в Xray...", reply_markup=None)
+
         try:
             subscription = await asyncio.to_thread(
                 billing.activate_mock_payment,
@@ -56,7 +59,6 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
             )
         except RuntimeError as exc:
             await callback.message.edit_text(str(exc), reply_markup=main_menu())
-            await callback.answer("Ошибка активации")
             return
 
         await callback.message.edit_text(
@@ -64,7 +66,6 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
             reply_markup=main_menu(),
             parse_mode="Markdown",
         )
-        await callback.answer("Тестовая оплата прошла")
 
     @router.callback_query(lambda query: query.data in {"my_key", "status"})
     async def status(callback: CallbackQuery) -> None:

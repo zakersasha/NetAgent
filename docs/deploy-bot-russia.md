@@ -54,7 +54,8 @@ curl -x "$BOT_PROXY_URL" -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/g
 
 - Оплата тестовая, без ЮKassa.
 - Подписки в памяти — после `docker compose down` сбрасываются.
-- Ключ в боте **mock** — в Xray на Литве client ещё не создаётся.
+- При оплате бот вызывает Xray Agent на Литве и добавляет client в Xray.
+- `XRAY_AGENT_TIMEOUT_SECONDS=60` — timeout на запись config + restart Xray.
 
 ## 7. Если бот падает
 
@@ -62,5 +63,6 @@ curl -x "$BOT_PROXY_URL" -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/g
 |--------|---------|
 | `TELEGRAM_BOT_TOKEN в .env` | Заполнить `.env`, не оставлять пустой и не `mock-token` |
 | `Request timeout` | Задать `BOT_PROXY_URL` в `.env` |
+| `Agent request failed: timed out` | Проверить доступ к `XRAY_AGENT_URL`, логи `netagent-xray-agent`, увеличить `XRAY_AGENT_TIMEOUT_SECONDS` |
 | `Unauthorized` | Неверный токен |
 | Бот не отвечает | `docker compose logs -f bot` |

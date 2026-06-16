@@ -41,6 +41,7 @@ async def main() -> None:
             base_url=agent_url,
             api_key=settings.xray_agent_api_key,
             verify_ssl=settings.xray_agent_verify_ssl,
+            timeout_seconds=settings.xray_agent_timeout_seconds,
         )
         logging.info("Xray Agent: %s", agent_url)
 
