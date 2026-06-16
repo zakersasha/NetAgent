@@ -7,6 +7,9 @@ from aiogram.types import CallbackQuery, Message
 from bot.billing import MockBillingClient
 from bot.keyboards import main_menu, payment_keyboard, plans_keyboard
 from bot.messages import (
+    activating_text,
+    activation_error_text,
+    help_text,
     no_subscription_text,
     plan_details_text,
     plans_text,
@@ -49,7 +52,7 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
     async def mock_payment(callback: CallbackQuery) -> None:
         plan_slug = callback.data.split(":", 1)[1]
         await callback.answer("Активирую подписку...")
-        await callback.message.edit_text("Оплата прошла. Добавляю ключ в Xray...", reply_markup=None)
+        await callback.message.edit_text(activating_text(), reply_markup=None)
 
         try:
             subscription = await asyncio.to_thread(
@@ -58,13 +61,12 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
                 plan_slug,
             )
         except RuntimeError as exc:
-            await callback.message.edit_text(str(exc), reply_markup=main_menu())
+            await callback.message.edit_text(activation_error_text(str(exc)), reply_markup=main_menu())
             return
 
         await callback.message.edit_text(
             subscription_text(subscription),
             reply_markup=main_menu(),
-            parse_mode="Markdown",
         )
 
     @router.callback_query(lambda query: query.data in {"my_key", "status"})
@@ -76,13 +78,12 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
             await callback.message.edit_text(
                 subscription_text(subscription),
                 reply_markup=main_menu(),
-                parse_mode="Markdown",
             )
         await callback.answer()
 
     @router.callback_query(lambda query: query.data == "support")
     async def support(callback: CallbackQuery) -> None:
-        await callback.message.edit_text(settings.support_contact, reply_markup=main_menu())
+        await callback.message.edit_text(help_text(settings.support_contact), reply_markup=main_menu())
         await callback.answer()
 
     return router
