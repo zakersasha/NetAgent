@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +23,25 @@ class BotSettings(BaseSettings):
     xray_agent_url: str = Field("", alias="XRAY_AGENT_URL")
     xray_agent_api_key: str = Field("", alias="XRAY_AGENT_API_KEY")
     xray_agent_verify_ssl: bool = Field(False, alias="XRAY_AGENT_VERIFY_SSL")
+
+    @field_validator("reality_public_key", mode="before")
+    @classmethod
+    def validate_reality_public_key(cls, value: object) -> str:
+        normalized = str(value or "").strip()
+        if normalized and len(normalized) == 16 and all(
+            char in "0123456789abcdef" for char in normalized.lower()
+        ):
+            raise ValueError(
+                "REALITY_PUBLIC_KEY — это pbk из vless://, не sid (16 hex)"
+            )
+        return normalized
+
+    @field_validator("xray_agent_verify_ssl", mode="before")
+    @classmethod
+    def strip_bool_env(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().strip("\\")
+        return value
 
 
 @lru_cache

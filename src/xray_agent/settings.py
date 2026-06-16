@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,19 @@ class AgentSettings(BaseSettings):
 
     command_timeout_seconds: int = 20
     lock_timeout_seconds: int = 10
+
+    @field_validator("reality_public_key", mode="before")
+    @classmethod
+    def validate_reality_public_key(cls, value: object) -> str | None:
+        if value is None or value == "":
+            return None
+        normalized = str(value).strip()
+        if len(normalized) == 16 and all(char in "0123456789abcdef" for char in normalized.lower()):
+            raise ValueError(
+                "REALITY_PUBLIC_KEY — это pbk из vless:// (длинная строка), "
+                "не REALITY_SHORT_ID (16 hex). Пример: YTQ_dIa_739_d6x7OUAs2XjMbpX6UOnWBMkGVtEhi18"
+            )
+        return normalized
 
     def allowed_ips(self) -> set[str]:
         return _csv_to_set(self.agent_allowed_ips)

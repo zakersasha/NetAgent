@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -57,7 +58,9 @@ def settings(config_path: Path) -> AgentSettings:
     )
 
 
-def test_add_user_writes_limit_and_keeps_reserved_out_of_paying_count(tmp_path: Path) -> None:
+def test_add_user_writes_minimal_client_and_keeps_reserved_out_of_paying_count(
+    tmp_path: Path,
+) -> None:
     config_path = tmp_path / "config.json"
     write_config(config_path)
     service = XrayConfigService(settings(config_path))
@@ -73,6 +76,16 @@ def test_add_user_writes_limit_and_keeps_reserved_out_of_paying_count(tmp_path: 
     assert count.reserved == 1
     assert count.paying == 1
 
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    clients = saved["inbounds"][0]["settings"]["clients"]
+    user = next(client for client in clients if client["id"] == "user-uuid")
+    admin = next(client for client in clients if client["id"] == "admin-uuid")
+    assert "limit" not in user
+    assert "level" not in user
+    assert "limit" not in admin
+    assert "level" not in admin
+    assert "policy" not in saved
+
 
 def test_add_existing_user_updates_limit(tmp_path: Path) -> None:
     config_path = tmp_path / "config.json"
@@ -82,8 +95,13 @@ def test_add_existing_user_updates_limit(tmp_path: Path) -> None:
     service.add_user(AddUserRequest(uuid="user-uuid", email="user_1@netagent.local", limit=1))
     service.add_user(AddUserRequest(uuid="user-uuid", email="user_1@netagent.local", limit=3))
 
-    user = next(item for item in service.list_users() if item.uuid == "user-uuid")
-    assert user.limit == 3
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    clients = saved["inbounds"][0]["settings"]["clients"]
+    user = next(client for client in clients if client["id"] == "user-uuid")
+    assert user["email"] == "user_1@netagent.local"
+    assert user["flow"] == "xtls-rprx-vision"
+    assert "limit" not in user
+    assert "level" not in user
 
 
 def test_reserved_user_cannot_be_removed(tmp_path: Path) -> None:
@@ -93,3 +111,15 @@ def test_reserved_user_cannot_be_removed(tmp_path: Path) -> None:
 
     with pytest.raises(ReservedUserError):
         service.remove_user("admin-uuid")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes are not enforced on Windows")
+def test_atomic_write_preserves_readable_config_permissions(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    write_config(config_path)
+    config_path.chmod(0o644)
+    service = XrayConfigService(settings(config_path))
+
+    service.add_user(AddUserRequest(uuid="user-uuid", email="user_1@netagent.local", limit=1))
+
+    assert os.stat(config_path).st_mode & 0o777 == 0o644

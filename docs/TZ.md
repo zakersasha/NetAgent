@@ -214,19 +214,15 @@ vless://{uuid}@45.93.137.80:443?encryption=none&flow=xtls-rprx-vision&security=r
 - `reality_public_key` — вычисляется из `privateKey` (на стороне Agent или Core при генерации URI).
 - `privateKey` хранится **только на VPN-сервере** (env / config), не в репозитории NetAgent.
 
-### 3.3 Лимит устройств через Xray `limit`
+### 3.3 Лимит устройств
 
-При создании пользователя Agent записывает в client поле **`limit`** = выбранному тарифу:
+В чистом Xray-core нет рабочего поля `limit` для ограничения устройств в `settings.clients`.
+Agent не пишет `limit`, чтобы не ломать `config.json`.
 
-| Тариф | `limit` в config |
-|-------|------------------|
-| Start | `1` |
-| Standard | `2` |
-| Family | `3` |
+В MVP лимит устройств хранится на стороне NetAgent как атрибут тарифа и отображается пользователю.
+Фактическое enforcement устройств переносится на следующий этап (panel-side логика, Stats API/fail2ban или отдельный контроллер).
 
-Xray **сам отключает лишние подключения** при превышении `limit`. Дополнительный мониторинг online, Stats API и статус `suspended` **не нужны в MVP**.
-
-При смене тарифа (продление с другим планом) — обновить `limit` в client и перезапустить Xray.
+При смене тарифа (продление с другим планом) NetAgent обновляет подписку; Xray client остаётся с тем же UUID.
 
 ### 3.4 Рекомендации к конфигу
 
@@ -344,15 +340,16 @@ Xray **сам отключает лишние подключения** при п
 1. **Лимит 50 ключей** на Agent и в БД.
 2. Один UUID на пользователя (MVP).
 3. `email` в config = `user_{id}@netagent.local`.
-4. `limit` в config = `plan.device_limit` при создании/продлении.
+4. `plan.device_limit` хранится в NetAgent; Xray client не получает поле `limit`.
 5. Audit log в NetAgent + лог Agent.
 
 ### 4.6 Ограничение устройств
 
-**Реализация MVP:** только поле **`limit`** в Xray client. Xray ограничивает число одновременных подключений.
+**Реализация MVP:** лимит устройств отображается и хранится в NetAgent. Чистый Xray-core не ограничивает количество устройств по полю `limit`.
 
 | Не в MVP | |
 |----------|--|
+| Реальное enforcement device limit | ❌ |
 | Stats API / polling online | ❌ |
 | Статус `suspended` по device_limit | ❌ |
 | Отдельный мониторинг соединений | ❌ |

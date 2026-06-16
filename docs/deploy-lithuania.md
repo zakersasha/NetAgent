@@ -102,10 +102,12 @@ AGENT_PORT=8443
 
 # Личный VPN client: email и/или uuid через запятую
 AGENT_RESERVED_EMAILS=
-AGENT_RESERVED_UUIDS=
+AGENT_RESERVED_UUIDS=6f176e02-bae9-4998-8bb4-099cbb76981c
 
-# Публичный Reality key для генерации vless:// ссылок.
-REALITY_PUBLIC_KEY=
+# НЕ ПЕРЕПУТАТЬ: pbk из vless:// (длинная строка) и short id (16 hex)
+REALITY_PUBLIC_KEY=YTQ_dIa_739_d6x7OUAs2XjMbpX6UOnWBMkGVtEhi18
+REALITY_SHORT_ID=6ba85179e30d4fc2
+REALITY_SNI=www.wikipedia.org
 ```
 
 API-ключ сгенерировать, например:
@@ -213,6 +215,8 @@ python scripts/xray_cli.py remove \
 - Reserved client не удаляется через `/remove_user` и не входит в лимит 50 платных clients.
 - При каждом `/add_user` и `/remove_user` Agent валидирует config и выполняет `systemctl restart xray`.
 - Если `xray run -test` не проходит, Agent откатывает config на предыдущую версию.
+- **`REALITY_PUBLIC_KEY`** — это `pbk` из vless:// (длинная base64url строка). **Не** `sid` (`6ba85179e30d4fc2`).
+- Поле **`limit`** в client Xray **не поддерживает** — Agent удаляет его при правке config. Лимит устройств в чистом Xray-core не реализован в MVP.
 
 ## 12. Восстановление VPN (если перестал работать)
 
@@ -229,8 +233,28 @@ sudo systemctl disable netagent-xray-agent
 
 ```bash
 sudo xray run -test -c /usr/local/etc/xray/config.json
+sudo chmod 644 /usr/local/etc/xray/config.json
 sudo systemctl status xray
 sudo journalctl -u xray -n 50 --no-pager
+```
+
+Убрать лишние поля `limit`, `level` и `policy.levels.*.maxIPs` (если Agent добавил до обновления):
+
+```bash
+sudo nano /usr/local/etc/xray/config.json
+# удалить строки "limit": 1 из clients
+# удалить строки "level": 1 из clients
+# удалить весь блок "policy", если внутри только maxIPs
+```
+
+Минимальный рабочий client:
+
+```json
+{
+  "id": "7c4088bd-eb58-501d-810f-accefebde006",
+  "flow": "xtls-rprx-vision",
+  "email": "user_tg_544709692@netagent.local"
+}
 ```
 
 Если `run -test` **ошибка** — config сломан. Восстановить из бэкапа:
@@ -249,6 +273,13 @@ sudo xray run -test -c /usr/local/etc/xray/config.json
 sudo systemctl restart xray
 sudo systemctl status xray
 ss -lntp | grep 443
+```
+
+Если `run -test` показывает `Configuration OK`, а `systemctl restart xray` падает с `permission denied`, восстановить права:
+
+```bash
+sudo chmod 644 /usr/local/etc/xray/config.json
+sudo systemctl restart xray
 ```
 
 Проверьте VPN с телефона/клиента. **Сначала VPN, потом agent.**

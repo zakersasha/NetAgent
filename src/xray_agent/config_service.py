@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
+from netagent_common.vless_uri import build_vless_reality_uri
 from xray_agent.errors import (
     ConfigError,
     ReservedUserError,
@@ -15,7 +16,6 @@ from xray_agent.errors import (
 )
 from xray_agent.models import AddUserRequest, CountResponse, UserResponse
 from xray_agent.settings import AgentSettings
-from netagent_common.vless_uri import build_vless_reality_uri
 
 
 class XrayConfigService:
@@ -40,6 +40,7 @@ class XrayConfigService:
                     raise UserLimitReached("Xray paying user limit reached")
                 clients.append(self._client_payload(request))
 
+            self._sanitize_clients(clients)
             self._write_validate_restart(config)
 
         return UserResponse(
@@ -108,8 +109,12 @@ class XrayConfigService:
             "id": request.uuid,
             "flow": request.flow,
             "email": request.email,
-            "limit": request.limit,
         }
+
+    def _sanitize_clients(self, clients: list[dict[str, Any]]) -> None:
+        for client in clients:
+            client.pop("limit", None)
+            client.pop("level", None)
 
     def _read_config(self) -> dict[str, Any]:
         try:
@@ -179,6 +184,17 @@ class XrayConfigService:
 
     def _atomic_write(self, config: dict[str, Any]) -> None:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        mode = 0o644
+        uid: int | None = None
+        gid: int | None = None
+        try:
+            current_stat = self.config_path.stat()
+            mode = current_stat.st_mode & 0o777
+            uid = current_stat.st_uid
+            gid = current_stat.st_gid
+        except FileNotFoundError:
+            pass
+
         with NamedTemporaryFile(
             "w",
             encoding="utf-8",
@@ -188,6 +204,13 @@ class XrayConfigService:
             json.dump(config, temp, ensure_ascii=False, indent=2)
             temp.write("\n")
             temp_path = Path(temp.name)
+
+        temp_path.chmod(mode)
+        if uid is not None and gid is not None and hasattr(os, "chown"):
+            try:
+                os.chown(temp_path, uid, gid)
+            except OSError:
+                pass
         os.replace(temp_path, self.config_path)
 
     def _run_command(self, command: str) -> None:

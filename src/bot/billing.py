@@ -77,17 +77,12 @@ class MockBillingClient:
     def _provision_xray_user(self, uuid: str, email: str, limit: int, label: str) -> str:
         if self._xray_agent:
             try:
-                response = self._xray_agent.add_user(email=email, uuid=uuid, limit=limit)
+                self._xray_agent.add_user(email=email, uuid=uuid, limit=limit)
             except XrayAgentClientError as exc:
                 raise RuntimeError(f"Не удалось добавить пользователя в Xray: {exc}") from exc
-            uri = response.get("connection_uri")
-            if uri:
-                return uri
 
         if not self.reality_public_key:
-            raise RuntimeError(
-                "Задайте REALITY_PUBLIC_KEY в .env или подключите XRAY_AGENT_URL"
-            )
+            raise RuntimeError("Задайте REALITY_PUBLIC_KEY в .env")
 
         return build_vless_reality_uri(
             uuid,
