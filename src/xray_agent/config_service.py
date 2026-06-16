@@ -6,8 +6,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
-from urllib.parse import quote
-
 from xray_agent.errors import (
     ConfigError,
     ReservedUserError,
@@ -17,6 +15,7 @@ from xray_agent.errors import (
 )
 from xray_agent.models import AddUserRequest, CountResponse, UserResponse
 from xray_agent.settings import AgentSettings
+from netagent_common.vless_uri import build_vless_reality_uri
 
 
 class XrayConfigService:
@@ -91,20 +90,18 @@ class XrayConfigService:
         self._run_command(command)
 
     def build_connection_uri(self, uuid: str, label: str) -> str:
-        params = {
-            "encryption": "none",
-            "flow": self.settings.vless_flow,
-            "security": "reality",
-            "sni": self.settings.reality_sni,
-            "fp": self.settings.reality_fingerprint,
-            "sid": self.settings.reality_short_id,
-            "type": "tcp",
-        }
-        if self.settings.reality_public_key:
-            params["pbk"] = self.settings.reality_public_key
-
-        query = "&".join(f"{key}={quote(str(value), safe='')}" for key, value in params.items())
-        return f"vless://{uuid}@{self.settings.xray_public_host}:443?{query}#{quote(label)}"
+        public_key = self.settings.reality_public_key or ""
+        if not public_key:
+            raise ConfigError("REALITY_PUBLIC_KEY must be set to build VLESS connection URI")
+        return build_vless_reality_uri(
+            uuid,
+            self.settings.xray_public_host,
+            label,
+            public_key=public_key,
+            short_id=self.settings.reality_short_id,
+            sni=self.settings.reality_sni,
+            flow=self.settings.vless_flow,
+        )
 
     def _client_payload(self, request: AddUserRequest) -> dict[str, Any]:
         return {

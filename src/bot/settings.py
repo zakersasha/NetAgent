@@ -15,6 +15,15 @@ class BotSettings(BaseSettings):
     timezone: str = Field("Europe/Moscow", alias="TIMEZONE")
     xray_public_host: str = Field("45.93.137.80", alias="XRAY_PUBLIC_HOST")
 
+    vless_flow: str = Field("xtls-rprx-vision", alias="VLESS_FLOW")
+    reality_sni: str = Field("www.wikipedia.org", alias="REALITY_SNI")
+    reality_short_id: str = Field("6ba85179e30d4fc3", alias="REALITY_SHORT_ID")
+    reality_public_key: str = Field("", alias="REALITY_PUBLIC_KEY")
+
+    xray_agent_url: str = Field("", alias="XRAY_AGENT_URL")
+    xray_agent_api_key: str = Field("", alias="XRAY_AGENT_API_KEY")
+    xray_agent_verify_ssl: bool = Field(False, alias="XRAY_AGENT_VERIFY_SSL")
+
 
 @lru_cache
 def get_bot_settings() -> BotSettings:

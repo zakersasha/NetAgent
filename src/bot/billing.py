@@ -3,6 +3,9 @@ from datetime import datetime, timedelta
 from uuid import uuid5, NAMESPACE_URL
 from zoneinfo import ZoneInfo
 
+from netagent_common.vless_uri import build_vless_reality_uri
+from xray_client.client import XrayAgentClient, XrayAgentClientError
+
 from bot.plans import PLANS, Plan, get_plan
 
 
@@ -19,9 +22,23 @@ class SubscriptionView:
 class MockBillingClient:
     """Temporary in-memory billing adapter used until the API service is implemented."""
 
-    def __init__(self, public_host: str, timezone: str = "Europe/Moscow") -> None:
+    def __init__(
+        self,
+        public_host: str,
+        timezone: str = "Europe/Moscow",
+        reality_public_key: str = "",
+        reality_sni: str = "www.wikipedia.org",
+        reality_short_id: str = "6ba85179e30d4fc3",
+        vless_flow: str = "xtls-rprx-vision",
+        xray_agent: XrayAgentClient | None = None,
+    ) -> None:
         self.public_host = public_host
         self.timezone = ZoneInfo(timezone)
+        self.reality_public_key = reality_public_key.strip()
+        self.reality_sni = reality_sni
+        self.reality_short_id = reality_short_id
+        self.vless_flow = vless_flow
+        self._xray_agent = xray_agent
         self._subscriptions: dict[int, SubscriptionView] = {}
 
     def plans(self) -> tuple[Plan, ...]:
@@ -35,13 +52,20 @@ class MockBillingClient:
         xray_uuid = self._stable_uuid(telegram_id)
         xray_email = f"user_tg_{telegram_id}@netagent.local"
         expires_at = datetime.now(self.timezone) + timedelta(days=plan.duration_days)
+        label = f"NetAgent-{plan.name}"
+        connection_uri = self._provision_xray_user(
+            uuid=xray_uuid,
+            email=xray_email,
+            limit=plan.device_limit,
+            label=label,
+        )
 
         subscription = SubscriptionView(
             telegram_id=telegram_id,
             plan=plan,
             xray_uuid=xray_uuid,
             xray_email=xray_email,
-            connection_uri=self._mock_connection_uri(xray_uuid, plan),
+            connection_uri=connection_uri,
             expires_at=expires_at,
         )
         self._subscriptions[telegram_id] = subscription
@@ -50,11 +74,27 @@ class MockBillingClient:
     def _stable_uuid(self, telegram_id: int) -> str:
         return str(uuid5(NAMESPACE_URL, f"netagent:telegram:{telegram_id}"))
 
-    def _mock_connection_uri(self, xray_uuid: str, plan: Plan) -> str:
-        label = f"NetAgent-{plan.name}"
-        return (
-            f"vless://{xray_uuid}@{self.public_host}:443"
-            "?encryption=none&flow=xtls-rprx-vision&security=reality"
-            "&sni=www.wikipedia.org&fp=chrome&sid=6ba85179e30d4fc2&type=tcp"
-            f"#{label}"
+    def _provision_xray_user(self, uuid: str, email: str, limit: int, label: str) -> str:
+        if self._xray_agent:
+            try:
+                response = self._xray_agent.add_user(email=email, uuid=uuid, limit=limit)
+            except XrayAgentClientError as exc:
+                raise RuntimeError(f"Не удалось добавить пользователя в Xray: {exc}") from exc
+            uri = response.get("connection_uri")
+            if uri:
+                return uri
+
+        if not self.reality_public_key:
+            raise RuntimeError(
+                "Задайте REALITY_PUBLIC_KEY в .env или подключите XRAY_AGENT_URL"
+            )
+
+        return build_vless_reality_uri(
+            uuid,
+            self.public_host,
+            label,
+            public_key=self.reality_public_key,
+            short_id=self.reality_short_id,
+            sni=self.reality_sni,
+            flow=self.vless_flow,
         )

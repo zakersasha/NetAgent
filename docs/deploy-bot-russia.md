@@ -12,7 +12,7 @@
 cd /opt/netagent
 
 cp .env.example .env
-nano .env   # вставить TELEGRAM_BOT_TOKEN=...
+nano .env   # TELEGRAM_BOT_TOKEN, REALITY_PUBLIC_KEY, XRAY_AGENT_API_KEY
 
 docker compose up -d --build
 ```

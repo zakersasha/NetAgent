@@ -6,6 +6,8 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 
+from xray_client.client import XrayAgentClient
+
 from bot.billing import MockBillingClient
 from bot.handlers import create_router
 from bot.settings import get_bot_settings
@@ -32,9 +34,24 @@ async def main() -> None:
     if proxy:
         logging.info("Telegram API через прокси: %s", proxy.split("@")[-1])
 
+    agent_url = settings.xray_agent_url.strip()
+    xray_agent = None
+    if agent_url:
+        xray_agent = XrayAgentClient(
+            base_url=agent_url,
+            api_key=settings.xray_agent_api_key,
+            verify_ssl=settings.xray_agent_verify_ssl,
+        )
+        logging.info("Xray Agent: %s", agent_url)
+
     billing = MockBillingClient(
         public_host=settings.xray_public_host,
         timezone=settings.timezone,
+        reality_public_key=settings.reality_public_key,
+        reality_sni=settings.reality_sni,
+        reality_short_id=settings.reality_short_id,
+        vless_flow=settings.vless_flow,
+        xray_agent=xray_agent,
     )
     dispatcher = Dispatcher()
     dispatcher.include_router(create_router(settings, billing))

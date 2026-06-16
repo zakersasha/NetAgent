@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
@@ -46,7 +48,17 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
     @router.callback_query(lambda query: query.data and query.data.startswith("mockpay:"))
     async def mock_payment(callback: CallbackQuery) -> None:
         plan_slug = callback.data.split(":", 1)[1]
-        subscription = billing.activate_mock_payment(callback.from_user.id, plan_slug)
+        try:
+            subscription = await asyncio.to_thread(
+                billing.activate_mock_payment,
+                callback.from_user.id,
+                plan_slug,
+            )
+        except RuntimeError as exc:
+            await callback.message.edit_text(str(exc), reply_markup=main_menu())
+            await callback.answer("Ошибка активации")
+            return
+
         await callback.message.edit_text(
             subscription_text(subscription),
             reply_markup=main_menu(),
