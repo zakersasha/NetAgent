@@ -1,61 +1,34 @@
 # NetAgent
 
-MVP platform for selling monthly Xray VLESS Reality VPN subscriptions.
+MVP: продажа месячных VPN-подписок (Xray VLESS Reality).
 
-Current implementation focus: **Stage 1 — Xray Agent** and initial **Telegram bot mock flow**.
+| Компонент | Сервер | Документация |
+|-----------|--------|--------------|
+| `xray-agent` | Литва `45.93.137.80` | [docs/deploy-lithuania.md](docs/deploy-lithuania.md) |
+| Telegram-бот | Россия `37.230.114.25` | [docs/deploy-bot-russia.md](docs/deploy-bot-russia.md) |
 
-## Xray Agent
+## Telegram-бот (Docker)
 
-The agent runs on the Lithuanian VPN server and edits:
-
-```text
-/usr/local/etc/xray/config.json
+```bash
+cp .env.example .env
+# TELEGRAM_BOT_TOKEN=... в .env
+docker compose up -d --build
+docker compose logs -f bot
 ```
 
-It exposes a small HTTPS API on port `8443`:
+## Xray Agent CLI (с России на Литву)
 
-- `GET /health`
-- `GET /users`
-- `GET /users/count`
-- `POST /add_user`
-- `POST /remove_user`
+```bash
+pip install -e .
+export XRAY_AGENT_URL=https://45.93.137.80:8443
+export XRAY_AGENT_API_KEY=...
+export XRAY_AGENT_VERIFY_SSL=false
+python scripts/xray_cli.py health
+```
 
-Auth is done with the `X-API-Key` header. The billing server IP is whitelisted with
-`AGENT_ALLOWED_IPS=37.230.114.25`.
+## Тесты
 
-### Local Test
-
-```powershell
-pip install -e .[dev]
+```bash
+pip install -e ".[dev]"
 pytest
-```
-
-### CLI
-
-```powershell
-$env:XRAY_AGENT_API_KEY="change-me"
-python scripts/xray_cli.py count
-python scripts/xray_cli.py add --email user_1@netagent.local --limit 2
-```
-
-## Telegram Bot
-
-The bot is a separate microservice in `src/bot`. For now it uses in-memory mock billing:
-
-- shows Start / Standard / Family plans
-- confirms a mock payment
-- generates a stable UUID per Telegram user
-- shows subscription status and a mock VLESS URI
-
-Run locally:
-
-```powershell
-$env:TELEGRAM_BOT_TOKEN="<bot-token>"
-python -m bot.app
-```
-
-Run with Docker Compose profile:
-
-```powershell
-docker compose -f docker/docker-compose.yml --profile bot up --build bot
 ```

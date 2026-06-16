@@ -13,8 +13,9 @@ from bot.settings import get_bot_settings
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = get_bot_settings()
-    if settings.telegram_bot_token == "mock-token":
-        raise RuntimeError("TELEGRAM_BOT_TOKEN must be set to run the Telegram bot")
+    token = settings.telegram_bot_token.strip()
+    if not token or token == "mock-token":
+        raise RuntimeError("Задайте TELEGRAM_BOT_TOKEN в файле .env (токен от @BotFather)")
 
     billing = MockBillingClient(
         public_host=settings.xray_public_host,
