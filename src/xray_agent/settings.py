@@ -1,8 +1,12 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _csv_to_set(value: str) -> set[str]:
+    return {item.strip() for item in value.split(",") if item.strip()}
 
 
 class AgentSettings(BaseSettings):
@@ -16,9 +20,10 @@ class AgentSettings(BaseSettings):
     xray_public_host: str = "45.93.137.80"
 
     agent_api_key: str = Field("change-me", min_length=8)
-    agent_allowed_ips: set[str] = Field(default_factory=lambda: {"37.230.114.25"})
-    agent_reserved_emails: set[str] = Field(default_factory=set)
-    agent_reserved_uuids: set[str] = Field(default_factory=set)
+    # CSV в env: AGENT_ALLOWED_IPS=37.230.114.25
+    agent_allowed_ips: str = Field(default="37.230.114.25")
+    agent_reserved_emails: str = Field(default="")
+    agent_reserved_uuids: str = Field(default="")
 
     vless_flow: str = "xtls-rprx-vision"
     reality_sni: str = "www.wikipedia.org"
@@ -29,16 +34,14 @@ class AgentSettings(BaseSettings):
     command_timeout_seconds: int = 20
     lock_timeout_seconds: int = 10
 
-    @field_validator("agent_allowed_ips", "agent_reserved_emails", "agent_reserved_uuids", mode="before")
-    @classmethod
-    def split_csv_set(cls, value: str | set[str] | list[str] | None) -> set[str]:
-        if value is None:
-            return set()
-        if isinstance(value, set):
-            return {item.strip() for item in value if item.strip()}
-        if isinstance(value, list):
-            return {str(item).strip() for item in value if str(item).strip()}
-        return {item.strip() for item in value.split(",") if item.strip()}
+    def allowed_ips(self) -> set[str]:
+        return _csv_to_set(self.agent_allowed_ips)
+
+    def reserved_emails(self) -> set[str]:
+        return _csv_to_set(self.agent_reserved_emails)
+
+    def reserved_uuids(self) -> set[str]:
+        return _csv_to_set(self.agent_reserved_uuids)
 
 
 @lru_cache

@@ -52,7 +52,7 @@ def settings(config_path: Path) -> AgentSettings:
         xray_test_cmd="",
         xray_reload_cmd="",
         agent_api_key="test-key",
-        agent_reserved_emails={"admin@netagent.local"},
+        agent_reserved_emails="admin@netagent.local",
         reality_public_key="test-public-key",
     )
 

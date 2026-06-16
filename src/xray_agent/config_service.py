@@ -153,8 +153,8 @@ class XrayConfigService:
 
     def _is_reserved(self, client: dict[str, Any]) -> bool:
         return (
-            client.get("email") in self.settings.agent_reserved_emails
-            or client.get("id") in self.settings.agent_reserved_uuids
+            client.get("email") in self.settings.reserved_emails()
+            or client.get("id") in self.settings.reserved_uuids()
         )
 
     def _to_response(self, client: dict[str, Any]) -> UserResponse:

@@ -29,7 +29,8 @@ def verify_agent_access(settings: AgentSettings):
             )
 
         client_ip = _client_ip(request)
-        if settings.agent_allowed_ips and client_ip not in settings.agent_allowed_ips:
+        allowed_ips = settings.allowed_ips()
+        if allowed_ips and client_ip not in allowed_ips:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"IP is not allowed: {client_ip}",
