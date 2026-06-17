@@ -612,12 +612,21 @@ subscriptions (
   plan_id         INT REFERENCES plans(id),
   status          VARCHAR(20),            -- pending, active, expired,
                                           -- cancelled, pending_activation
-                                          -- (suspended — не используется в MVP)
-  xray_email      VARCHAR(255) UNIQUE,
-  xray_uuid       UUID UNIQUE,
   device_limit    INT NOT NULL CHECK (device_limit BETWEEN 1 AND 3),
   starts_at       TIMESTAMPTZ,
   expires_at      TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+)
+
+-- Устройства: отдельный UUID и ключ на каждое
+devices (
+  id              BIGSERIAL PRIMARY KEY,
+  user_id         BIGINT REFERENCES users(id),
+  subscription_id BIGINT REFERENCES subscriptions(id),
+  uuid            UUID UNIQUE NOT NULL,
+  device_name     VARCHAR(100) NOT NULL,   -- iPhone, MacBook, Windows PC
+  device_slug     VARCHAR(50) NOT NULL,    -- iphone, macbook, windows
+  xray_email      VARCHAR(255) UNIQUE NOT NULL,  -- {telegram_id}_{suffix}
   created_at      TIMESTAMPTZ DEFAULT NOW()
 )
 

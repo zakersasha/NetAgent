@@ -1,6 +1,7 @@
 from html import escape
 
-from bot.billing import SubscriptionView
+from bot.billing import DeviceView, SubscriptionView
+from bot.device_presets import DEVICE_PRESETS, DevicePreset
 from bot.plans import Plan
 
 
@@ -11,7 +12,7 @@ def welcome_text(service_name: str) -> str:
         "без сложных настроек.\n\n"
         "✨ Быстрое подключение\n"
         "📱 Телефон, ПК и планшет\n"
-        "🔑 Ключ в боте за пару минут\n"
+        "🔑 Отдельный ключ на каждое устройство\n"
         "🛟 Помощь, если что-то непонятно\n\n"
         "Выберите действие ниже 👇"
     )
@@ -38,49 +39,99 @@ def plan_details_text(plan: Plan) -> str:
         f"Срок: <b>{plan.duration_days} дней</b>\n"
         f"Устройств: <b>до {plan.device_limit}</b>\n"
         f"Цена: <b>{plan.price_rub} ₽</b>\n\n"
-        "После оплаты бот выдаст ключ — скопируйте его в приложение из раздела «Инструкции»."
+        "После оплаты добавьте устройства в «Мой ключ» — "
+        "на каждое будет отдельный ключ."
     )
 
 
-def subscription_text(subscription: SubscriptionView) -> str:
+def payment_success_text(subscription: SubscriptionView) -> str:
     expires_at = subscription.expires_at.strftime("%d.%m.%Y %H:%M MSK")
     return (
-        "✅ <b>Доступ активен</b>\n\n"
+        "✅ <b>Тариф активирован</b>\n\n"
         f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
-        f"Устройств: <b>до {subscription.plan.device_limit}</b>\n"
+        f"Максимум устройств: <b>{subscription.plan.device_limit}</b>\n"
         f"Действует до: <b>{expires_at}</b>\n\n"
-        "🔑 <b>Ваш ключ</b>\n"
-        f"<code>{escape(subscription.connection_uri)}</code>\n\n"
-        "Скопируйте ключ целиком и добавьте в приложение — шаги в «Инструкции»."
+        "Теперь добавьте устройства и получите ключи для каждого."
+    )
+
+
+def devices_text(subscription: SubscriptionView) -> str:
+    expires_at = subscription.expires_at.strftime("%d.%m.%Y %H:%M MSK")
+    rows = [
+        "🔑 <b>Мои устройства</b>\n",
+        f"Тариф: <b>{escape(subscription.plan.name)}</b>",
+        f"Максимум устройств: <b>{subscription.plan.device_limit}</b>",
+        f"Действует до: <b>{expires_at}</b>",
+    ]
+    if not subscription.devices:
+        rows.append("\n\nУстройств ещё нет. Добавьте первое 👇")
+    else:
+        rows.append("\n\n<b>Подключённые устройства:</b>")
+        for device in subscription.devices:
+            rows.append(f"\n{device.emoji} {escape(device.display_name)}")
+        rows.append("\n\nНажмите на устройство, чтобы получить ключ.")
+    return "\n".join(rows)
+
+
+def device_detail_text(device: DeviceView) -> str:
+    return (
+        f"{device.emoji} <b>{escape(device.display_name)}</b>\n\n"
+        "🔑 <b>Ключ для этого устройства</b>\n"
+        f"<code>{escape(device.connection_uri)}</code>\n\n"
+        "Скопируйте ключ и добавьте только на это устройство. "
+        "Шаги подключения — в «Инструкции»."
+    )
+
+
+def add_device_text(subscription: SubscriptionView) -> str:
+    return (
+        "➕ <b>Добавить устройство</b>\n\n"
+        f"Можно добавить ещё: <b>"
+        f"{subscription.plan.device_limit - len(subscription.devices)}</b>\n\n"
+        "Выберите тип устройства — для каждого будет отдельный ключ."
     )
 
 
 def no_subscription_text() -> str:
     return (
-        "🔑 <b>Ключа пока нет</b>\n\n"
-        "Выберите тариф — бот выдаст персональный ключ для подключения."
+        "🔑 <b>Активного тарифа нет</b>\n\n"
+        "Выберите тариф, затем добавьте устройства и получите ключи."
     )
 
 
 def activating_text() -> str:
     return (
         "⏳ <b>Оплата прошла</b>\n\n"
-        "Готовлю ваш ключ. Обычно это занимает несколько секунд."
+        "Активируем тариф. Обычно это занимает пару секунд."
+    )
+
+
+def adding_device_text() -> str:
+    return (
+        "⏳ <b>Добавляем устройство</b>\n\n"
+        "Создаём персональный ключ. Обычно это занимает несколько секунд."
     )
 
 
 def activation_error_text(error: str) -> str:
     return (
-        "⚠️ <b>Не удалось выдать ключ</b>\n\n"
+        "⚠️ <b>Не удалось выполнить действие</b>\n\n"
         f"{escape(error)}\n\n"
         "Попробуйте ещё раз или напишите в поддержку."
+    )
+
+
+def device_limit_exceeded_text() -> str:
+    return (
+        "⚠️ <b>Лимит устройств исчерпан</b>\n\n"
+        "Удалите одно из существующих устройств, чтобы добавить новое."
     )
 
 
 def instructions_text() -> str:
     return (
         "📖 <b>Как подключиться</b>\n\n"
-        "1. Получите ключ в «Мой ключ» или после оплаты тарифа.\n"
+        "1. Получите ключ в «Мой ключ» для каждого устройства.\n"
         "2. Установите приложение на устройство.\n"
         "3. Добавьте ключ через «Импорт из буфера» или «+» → вставить ссылку.\n"
         "4. Включите подключение в приложении.\n\n"
@@ -98,3 +149,8 @@ def instructions_text() -> str:
         "• <a href=\"https://github.com/MatsuriDayo/nekoray/releases\">Nekoray</a> (Windows / macOS)\n\n"
         "Если не подключается — откройте «Поддержка», мы поможем."
     )
+
+
+def available_presets(subscription: SubscriptionView) -> tuple[DevicePreset, ...]:
+    used = {device.slug for device in subscription.devices}
+    return tuple(preset for preset in DEVICE_PRESETS if preset.slug not in used)

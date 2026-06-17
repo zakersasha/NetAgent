@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
@@ -6,11 +5,11 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 
-from xray_client.client import XrayAgentClient
-
-from bot.billing import MockBillingClient
+from bot.billing import BillingClient
 from bot.handlers import create_router
 from bot.settings import get_bot_settings
+from netagent_db.session import create_session_factory
+from xray_client.client import XrayAgentClient
 
 
 def create_bot(token: str, proxy_url: str) -> Bot:
@@ -30,6 +29,10 @@ async def main() -> None:
     if not token or token == "mock-token":
         raise RuntimeError("Задайте TELEGRAM_BOT_TOKEN в файле .env (токен от @BotFather)")
 
+    database_url = settings.database_url.strip()
+    if not database_url:
+        raise RuntimeError("Задайте DATABASE_URL в .env")
+
     proxy = settings.bot_proxy_url.strip()
     if proxy:
         logging.info("Telegram API через прокси: %s", proxy.split("@")[-1])
@@ -45,7 +48,9 @@ async def main() -> None:
         )
         logging.info("Xray Agent: %s", agent_url)
 
-    billing = MockBillingClient(
+    session_factory = create_session_factory(database_url)
+    billing = BillingClient(
+        session_factory=session_factory,
         public_host=settings.xray_public_host,
         timezone=settings.timezone,
         reality_public_key=settings.reality_public_key,
@@ -62,4 +67,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    import asyncio
+
     asyncio.run(main())

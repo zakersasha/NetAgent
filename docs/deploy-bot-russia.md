@@ -12,7 +12,7 @@
 cd /opt/netagent
 
 cp .env.example .env
-nano .env   # TELEGRAM_BOT_TOKEN, REALITY_PUBLIC_KEY, XRAY_AGENT_API_KEY
+nano .env   # TELEGRAM_BOT_TOKEN, POSTGRES_PASSWORD, REALITY_PUBLIC_KEY, XRAY_AGENT_API_KEY
 
 docker compose up -d --build
 ```
@@ -50,14 +50,20 @@ source .env
 curl -x "$BOT_PROXY_URL" -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe"
 ```
 
-## 6. Сейчас (mock)
+## 6. PostgreSQL
+
+- Единая БД для бота и будущей админки — данные сохраняются между перезапусками.
+- Подключение с ПК: [docs/deploy-database.md](deploy-database.md).
+- В `.env`: `POSTGRES_PASSWORD`, `DATABASE_URL`, при необходимости `ADMIN_SEED_PASSWORD`.
+
+## 7. Сейчас (mock)
 
 - Оплата тестовая, без ЮKassa.
-- Подписки в памяти — после `docker compose down` сбрасываются.
-- При оплате бот вызывает Xray Agent на Литве и добавляет client в Xray.
+- При оплате активируется подписка; устройство добавляется отдельно через «Мои устройства».
+- При добавлении устройства бот вызывает Xray Agent на Литве.
 - `XRAY_AGENT_TIMEOUT_SECONDS=60` — timeout на запись config + restart Xray.
 
-## 7. Если бот падает
+## 8. Если бот падает
 
 | Ошибка | Решение |
 |--------|---------|

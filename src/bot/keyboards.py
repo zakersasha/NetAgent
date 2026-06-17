@@ -1,6 +1,9 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from bot.billing import SubscriptionView
+from bot.device_presets import DevicePreset
+from bot.messages import available_presets
 from bot.plans import Plan
 
 SUPPORT_URL = "https://t.me/sashakharlamov"
@@ -32,6 +35,43 @@ def payment_keyboard(plan: Plan) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text=f"✅ Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
     builder.button(text="📦 Другой тариф", callback_data="plans")
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def devices_keyboard(subscription: SubscriptionView) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for device in subscription.devices:
+        builder.button(
+            text=f"{device.emoji} {device.display_name}",
+            callback_data=f"device:view:{device.id}",
+        )
+
+    if len(subscription.devices) < subscription.plan.device_limit:
+        builder.button(text="➕ Добавить устройство", callback_data="device:add")
+
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def device_presets_keyboard(presets: tuple[DevicePreset, ...]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for preset in presets:
+        builder.button(
+            text=f"{preset.emoji} {preset.title}",
+            callback_data=f"device:preset:{preset.slug}",
+        )
+    builder.button(text="⬅️ Назад", callback_data="my_key")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def device_detail_keyboard(device_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🗑 Удалить устройство", callback_data=f"device:remove:{device_id}")
+    builder.button(text="⬅️ К устройствам", callback_data="my_key")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()

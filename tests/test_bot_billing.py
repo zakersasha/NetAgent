@@ -1,45 +1,92 @@
-from bot.billing import MockBillingClient
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-PUBLIC_KEY = "YTQ_dIa_739_d6x7OUAd3XjMbpX3UOnWBMkGVtEhi18"
+from bot.billing import (
+    BillingClient,
+    DeviceAlreadyExistsError,
+    DeviceLimitExceededError,
+)
+from netagent_db.base import Base
+from netagent_db.seed import seed_plans
+
+PUBLIC_KEY = "YTQ_dIa_739_d6x7OUAd3XjMbpX6UOnWBMkGVtEhi18"
 
 
-def billing_client() -> MockBillingClient:
-    return MockBillingClient(
+@pytest.fixture
+def billing_client() -> BillingClient:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    with session_factory() as session:
+        seed_plans(session)
+    return BillingClient(
+        session_factory=session_factory,
         public_host="45.93.137.80",
         reality_public_key=PUBLIC_KEY,
         reality_short_id="6ba85179e30d4fc3",
     )
 
 
-def test_mock_payment_activates_monthly_subscription() -> None:
-    billing = billing_client()
-
-    subscription = billing.activate_mock_payment(telegram_id=123, plan_slug="standard")
+def test_mock_payment_activates_plan_without_devices(billing_client: BillingClient) -> None:
+    subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="standard")
 
     assert subscription.plan.slug == "standard"
     assert subscription.plan.device_limit == 2
-    assert subscription.xray_email == "user_tg_123@netagent.local"
-    assert "pbk=" in subscription.connection_uri
-    assert "45.93.137.80:443" in subscription.connection_uri
+    assert subscription.devices == ()
 
 
-def test_repeated_payment_keeps_same_uuid_and_updates_plan() -> None:
-    billing = billing_client()
+def test_add_device_creates_unique_uuid_and_email(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="standard")
 
-    first = billing.activate_mock_payment(telegram_id=123, plan_slug="start")
-    second = billing.activate_mock_payment(telegram_id=123, plan_slug="family")
+    phone = billing_client.add_device(telegram_id=123, preset_slug="iphone")
+    macbook = billing_client.add_device(telegram_id=123, preset_slug="macbook")
 
-    assert second.xray_uuid == first.xray_uuid
-    assert second.plan.slug == "family"
-    assert second.plan.device_limit == 3
+    assert phone.xray_email == "123_phone"
+    assert macbook.xray_email == "123_macbook"
+    assert phone.xray_uuid != macbook.xray_uuid
+    assert "pbk=" in phone.connection_uri
+    assert "45.93.137.80:443" in phone.connection_uri
 
 
-def test_unknown_plan_is_rejected() -> None:
-    billing = billing_client()
+def test_device_limit_is_enforced(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="start")
+    billing_client.add_device(telegram_id=123, preset_slug="iphone")
 
-    try:
-        billing.activate_mock_payment(telegram_id=123, plan_slug="unknown")
-    except ValueError as exc:
-        assert "Unknown plan" in str(exc)
-    else:
-        raise AssertionError("Unknown plan must fail")
+    with pytest.raises(DeviceLimitExceededError, match="Лимит устройств исчерпан"):
+        billing_client.add_device(telegram_id=123, preset_slug="android")
+
+
+def test_duplicate_device_preset_is_rejected(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="family")
+    billing_client.add_device(telegram_id=123, preset_slug="iphone")
+
+    with pytest.raises(DeviceAlreadyExistsError):
+        billing_client.add_device(telegram_id=123, preset_slug="iphone")
+
+
+def test_repeated_payment_updates_plan_and_keeps_devices(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="start")
+    device = billing_client.add_device(telegram_id=123, preset_slug="iphone")
+
+    subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="family")
+
+    assert subscription.plan.slug == "family"
+    assert len(subscription.devices) == 1
+    assert subscription.devices[0].xray_uuid == device.xray_uuid
+
+
+def test_remove_device_deletes_from_subscription(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="standard")
+    device = billing_client.add_device(telegram_id=123, preset_slug="iphone")
+
+    billing_client.remove_device(telegram_id=123, device_id=device.id)
+    subscription = billing_client.get_subscription(telegram_id=123)
+
+    assert subscription is not None
+    assert subscription.devices == ()
+
+
+def test_unknown_plan_is_rejected(billing_client: BillingClient) -> None:
+    with pytest.raises(Exception, match="Unknown plan"):
+        billing_client.activate_mock_payment(telegram_id=123, plan_slug="unknown")

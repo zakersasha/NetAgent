@@ -24,6 +24,7 @@ class BotSettings(BaseSettings):
     xray_agent_api_key: str = Field("", alias="XRAY_AGENT_API_KEY")
     xray_agent_verify_ssl: bool = Field(False, alias="XRAY_AGENT_VERIFY_SSL")
     xray_agent_timeout_seconds: float = Field(60.0, alias="XRAY_AGENT_TIMEOUT_SECONDS")
+    database_url: str = Field("", alias="DATABASE_URL")
 
     @field_validator("reality_public_key", mode="before")
     @classmethod

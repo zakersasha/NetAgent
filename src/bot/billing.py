@@ -1,29 +1,91 @@
-from dataclasses import dataclass
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from uuid import uuid5, NAMESPACE_URL
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
+
+from bot.device_presets import get_device_preset
+from bot.plans import Plan as PlanView
 from netagent_common.vless_uri import build_vless_reality_uri
+from netagent_db.models import Device, Payment, Plan, Subscription, User
 from xray_client.client import XrayAgentClient, XrayAgentClientError
 
-from bot.plans import PLANS, Plan, get_plan
+
+class DeviceLimitExceededError(ValueError):
+    """User reached the device limit for their plan."""
 
 
-@dataclass(frozen=True, slots=True)
-class SubscriptionView:
-    telegram_id: int
-    plan: Plan
-    xray_uuid: str
-    xray_email: str
-    connection_uri: str
-    expires_at: datetime
+class DeviceAlreadyExistsError(ValueError):
+    """This device type is already registered for the user."""
 
 
-class MockBillingClient:
-    """Temporary in-memory billing adapter used until the API service is implemented."""
+class DeviceNotFoundError(ValueError):
+    """Device not found for this user."""
+
+
+class NoSubscriptionError(ValueError):
+    """User has no active subscription."""
+
+
+class BillingError(ValueError):
+    """Generic billing error."""
+
+
+class DeviceView:
+    __slots__ = (
+        "id",
+        "slug",
+        "emoji",
+        "display_name",
+        "xray_uuid",
+        "xray_email",
+        "connection_uri",
+        "created_at",
+    )
 
     def __init__(
         self,
+        id: int,
+        slug: str,
+        emoji: str,
+        display_name: str,
+        xray_uuid: str,
+        xray_email: str,
+        connection_uri: str,
+        created_at: datetime,
+    ) -> None:
+        self.id = id
+        self.slug = slug
+        self.emoji = emoji
+        self.display_name = display_name
+        self.xray_uuid = xray_uuid
+        self.xray_email = xray_email
+        self.connection_uri = connection_uri
+        self.created_at = created_at
+
+
+class SubscriptionView:
+    __slots__ = ("telegram_id", "plan", "expires_at", "devices")
+
+    def __init__(
+        self,
+        telegram_id: int,
+        plan: PlanView,
+        expires_at: datetime,
+        devices: tuple[DeviceView, ...] = (),
+    ) -> None:
+        self.telegram_id = telegram_id
+        self.plan = plan
+        self.expires_at = expires_at
+        self.devices = devices
+
+
+class BillingClient:
+    def __init__(
+        self,
+        session_factory: Callable[[], Session],
         public_host: str,
         timezone: str = "Europe/Moscow",
         reality_public_key: str = "",
@@ -32,6 +94,7 @@ class MockBillingClient:
         vless_flow: str = "xtls-rprx-vision",
         xray_agent: XrayAgentClient | None = None,
     ) -> None:
+        self._session_factory = session_factory
         self.public_host = public_host
         self.timezone = ZoneInfo(timezone)
         self.reality_public_key = reality_public_key.strip()
@@ -39,51 +102,231 @@ class MockBillingClient:
         self.reality_short_id = reality_short_id
         self.vless_flow = vless_flow
         self._xray_agent = xray_agent
-        self._subscriptions: dict[int, SubscriptionView] = {}
 
-    def plans(self) -> tuple[Plan, ...]:
-        return PLANS
+    def plans(self) -> tuple[PlanView, ...]:
+        with self._session_factory() as session:
+            rows = session.scalars(
+                select(Plan).where(Plan.is_active.is_(True)).order_by(Plan.sort_order)
+            ).all()
+            return tuple(self._plan_view(row) for row in rows)
 
     def get_subscription(self, telegram_id: int) -> SubscriptionView | None:
-        return self._subscriptions.get(telegram_id)
+        with self._session_factory() as session:
+            return self._load_subscription_view(session, telegram_id)
 
     def activate_mock_payment(self, telegram_id: int, plan_slug: str) -> SubscriptionView:
-        plan = get_plan(plan_slug)
-        xray_uuid = self._stable_uuid(telegram_id)
-        xray_email = f"user_tg_{telegram_id}@netagent.local"
-        expires_at = datetime.now(self.timezone) + timedelta(days=plan.duration_days)
-        label = f"NetAgent-{plan.name}"
-        connection_uri = self._provision_xray_user(
-            uuid=xray_uuid,
-            email=xray_email,
-            limit=plan.device_limit,
-            label=label,
+        with self._session_factory() as session:
+            plan = session.scalar(select(Plan).where(Plan.slug == plan_slug, Plan.is_active.is_(True)))
+            if not plan:
+                raise BillingError(f"Unknown plan: {plan_slug}")
+
+            user = self._get_or_create_user(session, telegram_id)
+            now = datetime.now(self.timezone)
+            expires_at = now + timedelta(days=plan.duration_days)
+
+            subscription = session.scalar(
+                select(Subscription)
+                .where(Subscription.user_id == user.id, Subscription.status == "active")
+                .order_by(Subscription.expires_at.desc())
+            )
+            if subscription:
+                subscription.plan_id = plan.id
+                subscription.device_limit = plan.device_limit
+                subscription.starts_at = now
+                subscription.expires_at = expires_at
+            else:
+                subscription = Subscription(
+                    user_id=user.id,
+                    plan_id=plan.id,
+                    status="active",
+                    device_limit=plan.device_limit,
+                    starts_at=now,
+                    expires_at=expires_at,
+                )
+                session.add(subscription)
+                session.flush()
+
+            session.add(
+                Payment(
+                    user_id=user.id,
+                    subscription_id=subscription.id,
+                    plan_id=plan.id,
+                    provider="mock",
+                    amount=plan.price_rub,
+                    currency="RUB",
+                    status="succeeded",
+                )
+            )
+            session.commit()
+            return self._load_subscription_view(session, telegram_id) or SubscriptionView(
+                telegram_id=telegram_id,
+                plan=self._plan_view(plan),
+                expires_at=expires_at,
+            )
+
+    def add_device(self, telegram_id: int, preset_slug: str) -> DeviceView:
+        preset = get_device_preset(preset_slug)
+        connection_uri = ""
+
+        with self._session_factory() as session:
+            subscription = self._get_active_subscription(session, telegram_id)
+            if not subscription:
+                raise NoSubscriptionError("Сначала выберите тариф.")
+
+            device_count = session.scalar(
+                select(func.count())
+                .select_from(Device)
+                .where(Device.subscription_id == subscription.id)
+            ) or 0
+            if device_count >= subscription.device_limit:
+                raise DeviceLimitExceededError(
+                    "Лимит устройств исчерпан.\nУдалите одно из существующих устройств."
+                )
+
+            duplicate = session.scalar(
+                select(Device.id)
+                .where(Device.subscription_id == subscription.id, Device.device_slug == preset.slug)
+            )
+            if duplicate is not None:
+                raise DeviceAlreadyExistsError(f"{preset.title} уже добавлено.")
+
+            xray_uuid = str(uuid4())
+            xray_email = f"{telegram_id}_{preset.email_suffix}"
+            connection_uri = self._build_connection_uri(xray_uuid, preset.title)
+
+            if self._xray_agent:
+                try:
+                    self._xray_agent.add_user(email=xray_email, uuid=xray_uuid, limit=1)
+                except XrayAgentClientError as exc:
+                    raise RuntimeError(f"Не удалось добавить устройство в Xray: {exc}") from exc
+
+            device = Device(
+                user_id=subscription.user_id,
+                subscription_id=subscription.id,
+                uuid=xray_uuid,
+                device_name=preset.title,
+                device_slug=preset.slug,
+                xray_email=xray_email,
+            )
+            session.add(device)
+            session.commit()
+            session.refresh(device)
+
+            return DeviceView(
+                id=device.id,
+                slug=device.device_slug,
+                emoji=preset.emoji,
+                display_name=device.device_name,
+                xray_uuid=device.uuid,
+                xray_email=device.xray_email,
+                connection_uri=connection_uri,
+                created_at=device.created_at,
+            )
+
+    def remove_device(self, telegram_id: int, device_id: int) -> None:
+        with self._session_factory() as session:
+            device = session.scalar(
+                select(Device)
+                .join(User, Device.user_id == User.id)
+                .where(Device.id == device_id, User.telegram_id == telegram_id)
+            )
+            if not device:
+                raise DeviceNotFoundError("Устройство не найдено.")
+
+            if self._xray_agent:
+                try:
+                    self._xray_agent.remove_user(uuid=device.uuid)
+                except XrayAgentClientError as exc:
+                    raise RuntimeError(f"Не удалось удалить устройство в Xray: {exc}") from exc
+
+            session.delete(device)
+            session.commit()
+
+    def get_device(self, telegram_id: int, device_id: int) -> DeviceView | None:
+        with self._session_factory() as session:
+            device = session.scalar(
+                select(Device)
+                .join(User, Device.user_id == User.id)
+                .where(Device.id == device_id, User.telegram_id == telegram_id)
+            )
+            if not device:
+                return None
+            preset = get_device_preset(device.device_slug)
+            return DeviceView(
+                id=device.id,
+                slug=device.device_slug,
+                emoji=preset.emoji,
+                display_name=device.device_name,
+                xray_uuid=device.uuid,
+                xray_email=device.xray_email,
+                connection_uri=self._build_connection_uri(device.uuid, device.device_name),
+                created_at=device.created_at,
+            )
+
+    def _get_or_create_user(self, session: Session, telegram_id: int) -> User:
+        user = session.scalar(select(User).where(User.telegram_id == telegram_id))
+        if user:
+            return user
+        user = User(telegram_id=telegram_id, status="active")
+        session.add(user)
+        session.flush()
+        return user
+
+    def _get_active_subscription(self, session: Session, telegram_id: int) -> Subscription | None:
+        return session.scalar(
+            select(Subscription)
+            .join(User, Subscription.user_id == User.id)
+            .where(User.telegram_id == telegram_id, Subscription.status == "active")
+            .options(joinedload(Subscription.plan))
+            .order_by(Subscription.expires_at.desc())
         )
 
-        subscription = SubscriptionView(
+    def _load_subscription_view(self, session: Session, telegram_id: int) -> SubscriptionView | None:
+        subscription = self._get_active_subscription(session, telegram_id)
+        if not subscription:
+            return None
+
+        devices = session.scalars(
+            select(Device)
+            .join(User, Device.user_id == User.id)
+            .where(User.telegram_id == telegram_id, Device.subscription_id == subscription.id)
+            .order_by(Device.created_at)
+        ).all()
+
+        device_views = tuple(
+            DeviceView(
+                id=device.id,
+                slug=device.device_slug,
+                emoji=get_device_preset(device.device_slug).emoji,
+                display_name=device.device_name,
+                xray_uuid=device.uuid,
+                xray_email=device.xray_email,
+                connection_uri=self._build_connection_uri(device.uuid, device.device_name),
+                created_at=device.created_at,
+            )
+            for device in devices
+        )
+
+        return SubscriptionView(
             telegram_id=telegram_id,
-            plan=plan,
-            xray_uuid=xray_uuid,
-            xray_email=xray_email,
-            connection_uri=connection_uri,
-            expires_at=expires_at,
+            plan=self._plan_view(subscription.plan),
+            expires_at=subscription.expires_at or datetime.now(self.timezone),
+            devices=device_views,
         )
-        self._subscriptions[telegram_id] = subscription
-        return subscription
 
-    def _stable_uuid(self, telegram_id: int) -> str:
-        return str(uuid5(NAMESPACE_URL, f"netagent:telegram:{telegram_id}"))
+    def _plan_view(self, plan: Plan) -> PlanView:
+        return PlanView(
+            slug=plan.slug,
+            name=plan.name,
+            description=plan.description or "",
+            price_rub=int(plan.price_rub),
+            device_limit=plan.device_limit,
+            duration_days=plan.duration_days,
+        )
 
-    def _provision_xray_user(self, uuid: str, email: str, limit: int, label: str) -> str:
-        if self._xray_agent:
-            try:
-                self._xray_agent.add_user(email=email, uuid=uuid, limit=limit)
-            except XrayAgentClientError as exc:
-                raise RuntimeError(f"Не удалось добавить пользователя в Xray: {exc}") from exc
-
+    def _build_connection_uri(self, uuid: str, label: str) -> str:
         if not self.reality_public_key:
             raise RuntimeError("Задайте REALITY_PUBLIC_KEY в .env")
-
         return build_vless_reality_uri(
             uuid,
             self.public_host,
