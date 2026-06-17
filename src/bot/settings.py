@@ -10,8 +10,8 @@ class BotSettings(BaseSettings):
     telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     bot_proxy_url: str = Field("", alias="BOT_PROXY_URL")
     payment_provider: str = Field("mock", alias="PAYMENT_PROVIDER")
-    service_name: str = Field("NetAgent VPN", alias="BOT_SERVICE_NAME")
-    support_contact: str = Field("Поддержка будет добавлена позже", alias="BOT_SUPPORT_CONTACT")
+    service_name: str = Field("NetAgent", alias="BOT_SERVICE_NAME")
+    support_contact: str = Field("@sashakharlamov", alias="BOT_SUPPORT_CONTACT")
     timezone: str = Field("Europe/Moscow", alias="TIMEZONE")
     xray_public_host: str = Field("45.93.137.80", alias="XRAY_PUBLIC_HOST")
 

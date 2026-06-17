@@ -5,11 +5,11 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from bot.billing import MockBillingClient
-from bot.keyboards import main_menu, payment_keyboard, plans_keyboard
+from bot.keyboards import back_to_menu_keyboard, main_menu, payment_keyboard, plans_keyboard
 from bot.messages import (
     activating_text,
     activation_error_text,
-    help_text,
+    instructions_text,
     no_subscription_text,
     plan_details_text,
     plans_text,
@@ -51,7 +51,7 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
     @router.callback_query(lambda query: query.data and query.data.startswith("mockpay:"))
     async def mock_payment(callback: CallbackQuery) -> None:
         plan_slug = callback.data.split(":", 1)[1]
-        await callback.answer("Активирую подписку...")
+        await callback.answer("Готовлю ключ...")
         await callback.message.edit_text(activating_text(), reply_markup=None)
 
         try:
@@ -61,7 +61,10 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
                 plan_slug,
             )
         except RuntimeError as exc:
-            await callback.message.edit_text(activation_error_text(str(exc)), reply_markup=main_menu())
+            await callback.message.edit_text(
+                activation_error_text(str(exc)),
+                reply_markup=main_menu(),
+            )
             return
 
         await callback.message.edit_text(
@@ -70,7 +73,7 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
         )
 
     @router.callback_query(lambda query: query.data in {"my_key", "status"})
-    async def status(callback: CallbackQuery) -> None:
+    async def my_key(callback: CallbackQuery) -> None:
         subscription = billing.get_subscription(callback.from_user.id)
         if not subscription:
             await callback.message.edit_text(no_subscription_text(), reply_markup=main_menu())
@@ -81,9 +84,13 @@ def create_router(settings: BotSettings, billing: MockBillingClient) -> Router:
             )
         await callback.answer()
 
-    @router.callback_query(lambda query: query.data == "support")
-    async def support(callback: CallbackQuery) -> None:
-        await callback.message.edit_text(help_text(settings.support_contact), reply_markup=main_menu())
+    @router.callback_query(lambda query: query.data == "instructions")
+    async def instructions(callback: CallbackQuery) -> None:
+        await callback.message.edit_text(
+            instructions_text(),
+            reply_markup=back_to_menu_keyboard(),
+            disable_web_page_preview=True,
+        )
         await callback.answer()
 
     return router
