@@ -151,6 +151,14 @@ def instructions_text() -> str:
     )
 
 
+def support_text(contact: str) -> str:
+    return (
+        "💬 <b>Поддержка</b>\n\n"
+        f"Напишите нам: <b>{escape(contact)}</b>\n\n"
+        "Поможем с оплатой, подключением и настройкой приложения."
+    )
+
+
 def available_presets(subscription: SubscriptionView) -> tuple[DevicePreset, ...]:
     used = {device.slug for device in subscription.devices}
     return tuple(preset for preset in DEVICE_PRESETS if preset.slug not in used)

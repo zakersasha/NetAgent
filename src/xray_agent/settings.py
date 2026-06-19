@@ -18,6 +18,8 @@ class AgentSettings(BaseSettings):
     xray_reload_cmd: str = "systemctl restart xray"
     xray_test_cmd: str = "xray run -test -c {config_path}"
     xray_public_host: str = "45.93.137.80"
+    xray_bin: str = "xray"
+    xray_api_server: str = "127.0.0.1:10085"
 
     agent_api_key: str = Field("change-me", min_length=8)
     # CSV в env: AGENT_ALLOWED_IPS=37.230.114.25

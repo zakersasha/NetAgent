@@ -14,6 +14,7 @@ class BotSettings(BaseSettings):
     support_contact: str = Field("@sashakharlamov", alias="BOT_SUPPORT_CONTACT")
     timezone: str = Field("Europe/Moscow", alias="TIMEZONE")
     xray_public_host: str = Field("45.93.137.80", alias="XRAY_PUBLIC_HOST")
+    xray_public_port: int = Field(443, alias="XRAY_PUBLIC_PORT")
 
     vless_flow: str = Field("xtls-rprx-vision", alias="VLESS_FLOW")
     reality_sni: str = Field("www.wikipedia.org", alias="REALITY_SNI")

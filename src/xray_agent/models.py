@@ -1,6 +1,16 @@
 from pydantic import BaseModel, Field
 
 
+class OnlineIpEntry(BaseModel):
+    ip: str
+    last_seen: int = 0
+
+
+class UserOnlineStats(BaseModel):
+    email: str
+    ips: list[OnlineIpEntry] = Field(default_factory=list)
+
+
 class AddUserRequest(BaseModel):
     uuid: str = Field(..., min_length=1)
     email: str = Field(..., min_length=1)

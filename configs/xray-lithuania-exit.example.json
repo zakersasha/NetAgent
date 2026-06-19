@@ -1,0 +1,38 @@
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [
+    {
+      "tag": "vless-reality-in",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "6f176e02-bae9-4998-8bb4-099cbb76981c",
+            "flow": "xtls-rprx-vision",
+            "email": "admin@netagent.local"
+          },
+          {
+            "id": "9783d565-c328-479a-9f73-17fb90a5fdb2",
+            "flow": "xtls-rprx-vision",
+            "email": "bridge_russia"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "www.wikipedia.org:443",
+          "xver": 0,
+          "serverNames": ["www.wikipedia.org"],
+          "privateKey": "eGdm5HgRgqJFCfq-SNUhbeRw35bqGCUd3l81X0xRS3g",
+          "shortIds": ["6ba85179e30d4fc2"]
+        }
+      }
+    }
+  ],
+  "outbounds": [{ "protocol": "freedom" }]
+}

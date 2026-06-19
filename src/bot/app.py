@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 
 from bot.billing import BillingClient
+from bot.commands import setup_bot_commands
 from bot.handlers import create_router
 from bot.settings import get_bot_settings
 from netagent_db.session import create_session_factory
@@ -52,6 +53,7 @@ async def main() -> None:
     billing = BillingClient(
         session_factory=session_factory,
         public_host=settings.xray_public_host,
+        public_port=settings.xray_public_port,
         timezone=settings.timezone,
         reality_public_key=settings.reality_public_key,
         reality_sni=settings.reality_sni,
@@ -63,6 +65,7 @@ async def main() -> None:
     dispatcher.include_router(create_router(settings, billing))
 
     bot = create_bot(token, proxy)
+    await setup_bot_commands(bot)
     await dispatcher.start_polling(bot)
 
 

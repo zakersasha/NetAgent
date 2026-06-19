@@ -2,6 +2,7 @@ from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 
 from xray_agent.config_service import XrayConfigService
+from xray_agent.stats_service import XrayStatsService
 from xray_agent.errors import (
     ConfigError,
     ReservedUserError,
@@ -10,12 +11,13 @@ from xray_agent.errors import (
     XrayAgentError,
     XrayCommandError,
 )
-from xray_agent.models import AddUserRequest, HealthResponse, RemoveUserRequest, UserResponse
+from xray_agent.models import AddUserRequest, HealthResponse, RemoveUserRequest, UserOnlineStats, UserResponse
 from xray_agent.security import verify_agent_access
 from xray_agent.settings import get_settings
 
 settings = get_settings()
 service = XrayConfigService(settings)
+stats_service = XrayStatsService(settings)
 
 app = FastAPI(title="NetAgent Xray Agent", version="0.1.0")
 agent_auth = Depends(verify_agent_access(settings))
@@ -63,6 +65,11 @@ async def users() -> list[UserResponse]:
 @app.get("/users/count", dependencies=[agent_auth])
 async def users_count():
     return service.count_users()
+
+
+@app.get("/stats/users_online", response_model=list[UserOnlineStats], dependencies=[agent_auth])
+async def users_online_stats() -> list[UserOnlineStats]:
+    return stats_service.get_users_online()
 
 
 @app.post("/add_user", response_model=UserResponse, dependencies=[agent_auth])

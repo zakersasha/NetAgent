@@ -1,7 +1,7 @@
 import asyncio
 
 from aiogram import Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from bot.billing import (
@@ -18,6 +18,7 @@ from bot.keyboards import (
     main_menu,
     payment_keyboard,
     plans_keyboard,
+    support_keyboard,
 )
 from bot.messages import (
     activating_text,
@@ -33,6 +34,7 @@ from bot.messages import (
     payment_success_text,
     plan_details_text,
     plans_text,
+    support_text,
     welcome_text,
 )
 from bot.plans import get_plan
@@ -45,6 +47,37 @@ def create_router(settings: BotSettings, billing: BillingClient) -> Router:
     @router.message(CommandStart())
     async def start(message: Message) -> None:
         await message.answer(welcome_text(settings.service_name), reply_markup=main_menu())
+
+    @router.message(Command("plans"))
+    async def cmd_plans(message: Message) -> None:
+        plans = billing.plans()
+        await message.answer(plans_text(plans), reply_markup=plans_keyboard(plans))
+
+    @router.message(Command("devices"))
+    async def cmd_devices(message: Message) -> None:
+        subscription = billing.get_subscription(message.from_user.id)
+        if not subscription:
+            await message.answer(no_subscription_text(), reply_markup=main_menu())
+        else:
+            await message.answer(
+                devices_text(subscription),
+                reply_markup=devices_keyboard(subscription),
+            )
+
+    @router.message(Command("help"))
+    async def cmd_help(message: Message) -> None:
+        await message.answer(
+            instructions_text(),
+            reply_markup=back_to_menu_keyboard(),
+            disable_web_page_preview=True,
+        )
+
+    @router.message(Command("support"))
+    async def cmd_support(message: Message) -> None:
+        await message.answer(
+            support_text(settings.support_contact),
+            reply_markup=support_keyboard(),
+        )
 
     @router.callback_query(lambda query: query.data == "menu")
     async def menu(callback: CallbackQuery) -> None:

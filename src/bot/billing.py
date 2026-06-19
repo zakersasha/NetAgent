@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from bot.device_presets import get_device_preset
 from bot.plans import Plan as PlanView
+from netagent_common.device_id import make_device_id
 from netagent_common.vless_uri import build_vless_reality_uri
 from netagent_db.models import Device, Payment, Plan, Subscription, User
 from xray_client.client import XrayAgentClient, XrayAgentClientError
@@ -87,6 +88,7 @@ class BillingClient:
         self,
         session_factory: Callable[[], Session],
         public_host: str,
+        public_port: int = 443,
         timezone: str = "Europe/Moscow",
         reality_public_key: str = "",
         reality_sni: str = "www.wikipedia.org",
@@ -96,6 +98,7 @@ class BillingClient:
     ) -> None:
         self._session_factory = session_factory
         self.public_host = public_host
+        self.public_port = public_port
         self.timezone = ZoneInfo(timezone)
         self.reality_public_key = reality_public_key.strip()
         self.reality_sni = reality_sni
@@ -176,7 +179,10 @@ class BillingClient:
             device_count = session.scalar(
                 select(func.count())
                 .select_from(Device)
-                .where(Device.subscription_id == subscription.id)
+                .where(
+                    Device.subscription_id == subscription.id,
+                    Device.status == "active",
+                )
             ) or 0
             if device_count >= subscription.device_limit:
                 raise DeviceLimitExceededError(
@@ -185,7 +191,11 @@ class BillingClient:
 
             duplicate = session.scalar(
                 select(Device.id)
-                .where(Device.subscription_id == subscription.id, Device.device_slug == preset.slug)
+                .where(
+                    Device.subscription_id == subscription.id,
+                    Device.device_slug == preset.slug,
+                    Device.status == "active",
+                )
             )
             if duplicate is not None:
                 raise DeviceAlreadyExistsError(f"{preset.title} уже добавлено.")
@@ -204,9 +214,11 @@ class BillingClient:
                 user_id=subscription.user_id,
                 subscription_id=subscription.id,
                 uuid=xray_uuid,
+                device_id=make_device_id(subscription.user_id, preset.slug, xray_uuid),
                 device_name=preset.title,
                 device_slug=preset.slug,
                 xray_email=xray_email,
+                status="active",
             )
             session.add(device)
             session.commit()
@@ -233,7 +245,7 @@ class BillingClient:
             if not device:
                 raise DeviceNotFoundError("Устройство не найдено.")
 
-            if self._xray_agent:
+            if self._xray_agent and device.status == "active":
                 try:
                     self._xray_agent.remove_user(uuid=device.uuid)
                 except XrayAgentClientError as exc:
@@ -247,7 +259,11 @@ class BillingClient:
             device = session.scalar(
                 select(Device)
                 .join(User, Device.user_id == User.id)
-                .where(Device.id == device_id, User.telegram_id == telegram_id)
+                .where(
+                    Device.id == device_id,
+                    User.telegram_id == telegram_id,
+                    Device.status == "active",
+                )
             )
             if not device:
                 return None
@@ -289,7 +305,11 @@ class BillingClient:
         devices = session.scalars(
             select(Device)
             .join(User, Device.user_id == User.id)
-            .where(User.telegram_id == telegram_id, Device.subscription_id == subscription.id)
+            .where(
+                User.telegram_id == telegram_id,
+                Device.subscription_id == subscription.id,
+                Device.status == "active",
+            )
             .order_by(Device.created_at)
         ).all()
 
@@ -331,6 +351,7 @@ class BillingClient:
             uuid,
             self.public_host,
             label,
+            port=self.public_port,
             public_key=self.reality_public_key,
             short_id=self.reality_short_id,
             sni=self.reality_sni,

@@ -33,5 +33,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.bot
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-netagent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-netagent}
+    entrypoint: ["python", "-m", "device_monitor.app"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:

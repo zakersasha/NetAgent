@@ -33,6 +33,12 @@ class XrayAgentClient:
     def users_count(self) -> dict[str, Any]:
         return self._request("GET", "/users/count")
 
+    def users_online_stats(self) -> list[dict[str, Any]]:
+        data = self._request("GET", "/stats/users_online")
+        if isinstance(data, list):
+            return data
+        return []
+
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/health")
 
