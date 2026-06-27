@@ -15,6 +15,7 @@ PLAN_SEED = [
         "price_rub": 150,
         "device_limit": 1,
         "sort_order": 1,
+        "product_type": "vpn",
     },
     {
         "slug": "standard",
@@ -24,6 +25,7 @@ PLAN_SEED = [
         "price_rub": 250,
         "device_limit": 2,
         "sort_order": 2,
+        "product_type": "vpn",
     },
     {
         "slug": "family",
@@ -33,16 +35,26 @@ PLAN_SEED = [
         "price_rub": 350,
         "device_limit": 3,
         "sort_order": 3,
+        "product_type": "vpn",
+    },
+    {
+        "slug": "ai_plus",
+        "name": "AI Plus",
+        "description": "Безлимитный чат с AI-ассистентом",
+        "duration_days": 30,
+        "price_rub": 199,
+        "device_limit": 0,
+        "sort_order": 10,
+        "product_type": "ai",
     },
 ]
 
 
 def seed_plans(session: Session) -> None:
-    existing = session.scalar(select(Plan.id).limit(1))
-    if existing is not None:
-        return
     for item in PLAN_SEED:
-        session.add(Plan(**item))
+        exists = session.scalar(select(Plan.id).where(Plan.slug == item["slug"]))
+        if exists is None:
+            session.add(Plan(**item))
     session.commit()
 
 

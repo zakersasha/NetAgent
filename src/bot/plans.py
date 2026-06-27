@@ -9,6 +9,7 @@ class Plan:
     price_rub: int
     device_limit: int
     duration_days: int = 30
+    product_type: str = "vpn"
 
 
 PLANS: tuple[Plan, ...] = (
@@ -32,6 +33,14 @@ PLANS: tuple[Plan, ...] = (
         description="Для семьи или нескольких личных устройств",
         price_rub=350,
         device_limit=3,
+    ),
+    Plan(
+        slug="ai_plus",
+        name="AI Plus",
+        description="Безлимитный чат с AI-ассистентом",
+        price_rub=199,
+        device_limit=0,
+        product_type="ai",
     ),
 )
 

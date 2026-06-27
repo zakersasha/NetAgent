@@ -18,6 +18,7 @@ from bot.keyboards import (
     main_menu,
     payment_keyboard,
     plans_keyboard,
+    pro_menu_keyboard,
     support_keyboard,
 )
 from bot.messages import (
@@ -50,8 +51,11 @@ def create_router(settings: BotSettings, billing: BillingClient) -> Router:
 
     @router.message(Command("plans"))
     async def cmd_plans(message: Message) -> None:
-        plans = billing.plans()
-        await message.answer(plans_text(plans), reply_markup=plans_keyboard(plans))
+        plans = billing.plans("vpn")
+        await message.answer(
+            plans_text(plans, title="📦 <b>Тарифы Pro</b>"),
+            reply_markup=plans_keyboard(plans),
+        )
 
     @router.message(Command("devices"))
     async def cmd_devices(message: Message) -> None:
@@ -87,10 +91,21 @@ def create_router(settings: BotSettings, billing: BillingClient) -> Router:
         )
         await callback.answer()
 
+    @router.callback_query(lambda query: query.data == "pro:menu")
+    async def pro_menu(callback: CallbackQuery) -> None:
+        await callback.message.edit_text(
+            "🔐 <b>Pro доступ</b>\n\nКлючи и тарифы для расширенного подключения.",
+            reply_markup=pro_menu_keyboard(),
+        )
+        await callback.answer()
+
     @router.callback_query(lambda query: query.data == "plans")
     async def show_plans(callback: CallbackQuery) -> None:
-        plans = billing.plans()
-        await callback.message.edit_text(plans_text(plans), reply_markup=plans_keyboard(plans))
+        plans = billing.plans("vpn")
+        await callback.message.edit_text(
+            plans_text(plans, title="📦 <b>Тарифы Pro</b>"),
+            reply_markup=plans_keyboard(plans),
+        )
         await callback.answer()
 
     @router.callback_query(lambda query: query.data and query.data.startswith("plan:"))
@@ -121,7 +136,9 @@ def create_router(settings: BotSettings, billing: BillingClient) -> Router:
 
         await callback.message.edit_text(
             payment_success_text(subscription),
-            reply_markup=devices_keyboard(subscription),
+            reply_markup=devices_keyboard(subscription)
+            if subscription.plan.product_type == "vpn"
+            else main_menu(),
         )
 
     @router.callback_query(lambda query: query.data in {"my_key", "status"})

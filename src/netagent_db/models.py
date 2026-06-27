@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from netagent_db.base import Base
@@ -39,6 +39,7 @@ class Plan(Base):
     duration_days: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
     price_rub: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     device_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    product_type: Mapped[str] = mapped_column(String(20), default="vpn", server_default="vpn")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
@@ -103,6 +104,21 @@ class Payment(Base):
     confirmation_url: Mapped[str | None] = mapped_column(String(512))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AiDailyUsage(Base):
+    __tablename__ = "ai_daily_usage"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    usage_date: Mapped[date] = mapped_column(Date, nullable=False)
+    message_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
 

@@ -8,7 +8,7 @@ from netagent_common.vless_uri import build_vless_reality_uri
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build VLESS link for Russia relay inbound")
-    parser.add_argument("--host", required=True, help="Russia server IP, e.g. 37.230.114.25")
+    parser.add_argument("--host", required=True, help="Russia server IP, e.g. 51.250.112.128")
     parser.add_argument("--port", type=int, default=443)
     parser.add_argument("--uuid", required=True)
     parser.add_argument("--pbk", required=True, help="Reality public key (Russia inbound)")

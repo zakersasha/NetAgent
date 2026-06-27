@@ -5,8 +5,9 @@ MVP: продажа месячных подписок (Xray VLESS Reality).
 | Компонент | Сервер | Документация |
 |-----------|--------|--------------|
 | `xray-agent` | Литва `45.93.137.80` | [docs/deploy-lithuania.md](docs/deploy-lithuania.md) |
-| PostgreSQL + бот | Россия `37.230.114.25` | [docs/deploy-database.md](docs/deploy-database.md) |
-| Вход через Россию (LTE) | Россия → Литва relay | [docs/deploy-russia-relay.md](docs/deploy-russia-relay.md) |
+| Relay Wi‑Fi+LTE | Литва + Россия `51.250.112.128` | [docs/deploy-relay.md](docs/deploy-relay.md) |
+| PostgreSQL + бот / VPN entry | Россия `51.250.112.128` | [docs/deploy-database.md](docs/deploy-database.md) |
+| Откат на Литву (Wi‑Fi) | — | [docs/restore-lithuania-wifi.md](docs/restore-lithuania-wifi.md) |
 
 ## Россия (Docker)
 

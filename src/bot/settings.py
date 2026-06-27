@@ -27,6 +27,18 @@ class BotSettings(BaseSettings):
     xray_agent_timeout_seconds: float = Field(60.0, alias="XRAY_AGENT_TIMEOUT_SECONDS")
     database_url: str = Field("", alias="DATABASE_URL")
 
+    openai_api_key: str = Field("", alias="OPENAI_API_KEY")
+    openai_api_key_2: str = Field("", alias="OPENAI_API_KEY_2")
+    openai_model: str = Field("gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_proxy_url: str = Field("", alias="OPENAI_PROXY_URL")
+    openai_proxy_url_2: str = Field("", alias="OPENAI_PROXY_URL_2")
+    bot_proxy_url_2: str = Field("", alias="BOT_PROXY_URL_2")
+    ai_free_daily_limit: int = Field(3, alias="AI_FREE_DAILY_LIMIT")
+    ai_system_prompt: str = Field(
+        "Ты полезный AI-ассистент в Telegram. Отвечай коротко, по делу, на русском.",
+        alias="AI_SYSTEM_PROMPT",
+    )
+
     @field_validator("reality_public_key", mode="before")
     @classmethod
     def validate_reality_public_key(cls, value: object) -> str:

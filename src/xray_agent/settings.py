@@ -22,8 +22,8 @@ class AgentSettings(BaseSettings):
     xray_api_server: str = "127.0.0.1:10085"
 
     agent_api_key: str = Field("change-me", min_length=8)
-    # CSV в env: AGENT_ALLOWED_IPS=37.230.114.25
-    agent_allowed_ips: str = Field(default="37.230.114.25")
+    # CSV в env: AGENT_ALLOWED_IPS=51.250.112.128
+    agent_allowed_ips: str = Field(default="51.250.112.128")
     agent_reserved_emails: str = Field(default="")
     agent_reserved_uuids: str = Field(default="")
 

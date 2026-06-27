@@ -1,14 +1,15 @@
 {
-  "log": { "loglevel": "warning" },
+  "log": { "loglevel": "info" },
   "inbounds": [
     {
       "tag": "users-in",
-      "port": 443,
+      "listen": "0.0.0.0",
+      "port": 2053,
       "protocol": "vless",
       "settings": {
         "clients": [
           {
-            "id": "REPLACE_USER_UUID",
+            "id": "989e7ddf-acc4-4178-99d5-c3b4ea33a613",
             "flow": "xtls-rprx-vision",
             "email": "544709692_phone"
           }
@@ -23,9 +24,13 @@
           "dest": "www.wikipedia.org:443",
           "xver": 0,
           "serverNames": ["www.wikipedia.org"],
-          "privateKey": "REPLACE_RUSSIA_PRIVATE_KEY",
+          "privateKey": "iO1Mp_gBlUhSr2F6lEyIrHZ5dZNe39CxPifIk0V_o0k",
           "shortIds": ["6ba85179e30d4fc2"]
         }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"]
       }
     }
   ],
@@ -41,8 +46,9 @@
             "users": [
               {
                 "id": "9783d565-c328-479a-9f73-17fb90a5fdb2",
+                "encryption": "none",
                 "flow": "xtls-rprx-vision",
-                "encryption": "none"
+                "email": "bridge_russia"
               }
             ]
           }
@@ -53,7 +59,7 @@
         "security": "reality",
         "realitySettings": {
           "serverName": "www.wikipedia.org",
-          "publicKey": "REPLACE_LITHUANIA_PUBLIC_KEY",
+          "publicKey": "YTQ_dIa_739_d6x7OUAs2XjMbpX6UOnWBMkGVtEhi18",
           "shortId": "6ba85179e30d4fc2",
           "fingerprint": "chrome"
         }

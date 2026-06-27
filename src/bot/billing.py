@@ -106,16 +106,21 @@ class BillingClient:
         self.vless_flow = vless_flow
         self._xray_agent = xray_agent
 
-    def plans(self) -> tuple[PlanView, ...]:
+    def plans(self, product_type: str | None = None) -> tuple[PlanView, ...]:
         with self._session_factory() as session:
-            rows = session.scalars(
-                select(Plan).where(Plan.is_active.is_(True)).order_by(Plan.sort_order)
-            ).all()
+            query = select(Plan).where(Plan.is_active.is_(True))
+            if product_type:
+                query = query.where(Plan.product_type == product_type)
+            rows = session.scalars(query.order_by(Plan.sort_order)).all()
             return tuple(self._plan_view(row) for row in rows)
 
     def get_subscription(self, telegram_id: int) -> SubscriptionView | None:
         with self._session_factory() as session:
-            return self._load_subscription_view(session, telegram_id)
+            return self._load_subscription_view(session, telegram_id, product_type="vpn")
+
+    def get_ai_subscription(self, telegram_id: int) -> SubscriptionView | None:
+        with self._session_factory() as session:
+            return self._load_subscription_view(session, telegram_id, product_type="ai")
 
     def activate_mock_payment(self, telegram_id: int, plan_slug: str) -> SubscriptionView:
         with self._session_factory() as session:
@@ -129,7 +134,12 @@ class BillingClient:
 
             subscription = session.scalar(
                 select(Subscription)
-                .where(Subscription.user_id == user.id, Subscription.status == "active")
+                .join(Plan, Subscription.plan_id == Plan.id)
+                .where(
+                    Subscription.user_id == user.id,
+                    Subscription.status == "active",
+                    Plan.product_type == plan.product_type,
+                )
                 .order_by(Subscription.expires_at.desc())
             )
             if subscription:
@@ -161,7 +171,13 @@ class BillingClient:
                 )
             )
             session.commit()
-            return self._load_subscription_view(session, telegram_id) or SubscriptionView(
+            if plan.product_type == "ai":
+                return self._load_subscription_view(session, telegram_id, product_type="ai") or SubscriptionView(
+                    telegram_id=telegram_id,
+                    plan=self._plan_view(plan),
+                    expires_at=expires_at,
+                )
+            return self._load_subscription_view(session, telegram_id, product_type="vpn") or SubscriptionView(
                 telegram_id=telegram_id,
                 plan=self._plan_view(plan),
                 expires_at=expires_at,
@@ -288,17 +304,35 @@ class BillingClient:
         session.flush()
         return user
 
-    def _get_active_subscription(self, session: Session, telegram_id: int) -> Subscription | None:
+    def _get_active_subscription(
+        self,
+        session: Session,
+        telegram_id: int,
+        product_type: str = "vpn",
+    ) -> Subscription | None:
+        now = datetime.now(self.timezone)
         return session.scalar(
             select(Subscription)
             .join(User, Subscription.user_id == User.id)
-            .where(User.telegram_id == telegram_id, Subscription.status == "active")
+            .join(Plan, Subscription.plan_id == Plan.id)
+            .where(
+                User.telegram_id == telegram_id,
+                Subscription.status == "active",
+                Plan.product_type == product_type,
+                Subscription.expires_at.is_not(None),
+                Subscription.expires_at > now,
+            )
             .options(joinedload(Subscription.plan))
             .order_by(Subscription.expires_at.desc())
         )
 
-    def _load_subscription_view(self, session: Session, telegram_id: int) -> SubscriptionView | None:
-        subscription = self._get_active_subscription(session, telegram_id)
+    def _load_subscription_view(
+        self,
+        session: Session,
+        telegram_id: int,
+        product_type: str = "vpn",
+    ) -> SubscriptionView | None:
+        subscription = self._get_active_subscription(session, telegram_id, product_type)
         if not subscription:
             return None
 
@@ -342,6 +376,7 @@ class BillingClient:
             price_rub=int(plan.price_rub),
             device_limit=plan.device_limit,
             duration_days=plan.duration_days,
+            product_type=plan.product_type,
         )
 
     def _build_connection_uri(self, uuid: str, label: str) -> str:

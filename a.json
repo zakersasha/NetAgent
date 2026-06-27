@@ -1,15 +1,26 @@
 {
-  "log": { "loglevel": "info" },
+  "log": {
+    "loglevel": "warning"
+  },
   "inbounds": [
     {
-      "tag": "users-in",
-      "listen": "0.0.0.0",
+      "tag": "vless-reality-in",
       "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [
           {
-            "id": "822c54b6-4fae-4043-9774-70cd879c283f",
+            "id": "6f176e02-bae9-4998-8bb4-099cbb76981c",
+            "flow": "xtls-rprx-vision",
+            "email": "admin@netagent.local"
+          },
+          {
+            "id": "7c4088bd-eb58-501d-810f-accefebde006",
+            "flow": "xtls-rprx-vision",
+            "email": "user_tg_544709692@netagent.local"
+          },
+          {
+            "id": "989e7ddf-acc4-4178-99d5-c3b4ea33a613",
             "flow": "xtls-rprx-vision",
             "email": "544709692_phone"
           }
@@ -24,30 +35,16 @@
           "dest": "www.wikipedia.org:443",
           "xver": 0,
           "serverNames": ["www.wikipedia.org"],
-          "privateKey": "iO1Mp_gBlUhSr2F6lEyIrHZ5dZNe39CxPifIk0V_o0k",
+          "privateKey": "eGdm5HgRgqJFCfq-SNUhbeRw35bqGCUd3l81X0xRS3g",
           "shortIds": ["6ba85179e30d4fc2"]
         }
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"]
       }
     }
   ],
   "outbounds": [
     {
-      "tag": "direct",
-      "protocol": "freedom"
+      "protocol": "freedom",
+      "tag": "direct"
     }
-  ],
-  "routing": {
-    "domainStrategy": "AsIs",
-    "rules": [
-      {
-        "type": "field",
-        "inboundTag": ["users-in"],
-        "outboundTag": "direct"
-      }
-    ]
-  }
+  ]
 }

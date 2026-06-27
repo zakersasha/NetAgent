@@ -13,6 +13,16 @@
             "email": "admin@netagent.local"
           },
           {
+            "id": "7c4088bd-eb58-501d-810f-accefebde006",
+            "flow": "xtls-rprx-vision",
+            "email": "user_tg_544709692@netagent.local"
+          },
+          {
+            "id": "989e7ddf-acc4-4178-99d5-c3b4ea33a613",
+            "flow": "xtls-rprx-vision",
+            "email": "544709692_phone"
+          },
+          {
             "id": "9783d565-c328-479a-9f73-17fb90a5fdb2",
             "flow": "xtls-rprx-vision",
             "email": "bridge_russia"
@@ -34,5 +44,10 @@
       }
     }
   ],
-  "outbounds": [{ "protocol": "freedom" }]
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    }
+  ]
 }
