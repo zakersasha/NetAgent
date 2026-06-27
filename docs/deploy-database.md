@@ -13,12 +13,16 @@ docker compose logs -f bot
 docker compose logs -f postgres
 ```
 
-При старте бот автоматически:
-1. `alembic upgrade head` — создаёт таблицы
+При `docker compose up -d --build` **bot** и **monitor** через общий entrypoint автоматически:
+
+1. `alembic upgrade head` (с retry до 30 попыток, если Postgres ещё не готов)
 2. seed тарифов и admin (если задан `ADMIN_SEED_PASSWORD`)
-3. запускает polling
+3. запуск своего процесса (бот или monitor)
+
+В логах бота: `[entrypoint] Migrations applied.`
 
 ## Подключение с вашего компьютера
+
 
 ### Вариант A — открытый порт (динамический IP)
 
@@ -86,17 +90,12 @@ ssh -N -L 15432:127.0.0.1:5432 root@37.230.114.25
 ## Ручные команды
 
 ```bash
-# миграции
-docker compose run --rm bot alembic upgrade head
+# только миграции (entrypoint всё равно выполнит migrate+seed перед командой)
+docker compose run --rm bot alembic current
 
-# только seed
-docker compose run --rm bot python -c "
-from netagent_db.seed import run_seed
-from netagent_db.session import create_session_factory
-import os
-sf = create_session_factory(os.environ['DATABASE_URL'])
-with sf() as s: run_seed(s)
-"
+# пересборка и миграции при старте
+docker compose up -d --build
+docker compose logs bot | grep entrypoint
 ```
 
 ## Безопасность

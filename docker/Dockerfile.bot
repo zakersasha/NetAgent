@@ -13,3 +13,4 @@ RUN pip install --no-cache-dir . \
 ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python", "-m", "bot.app"]

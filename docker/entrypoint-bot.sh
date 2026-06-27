@@ -1,7 +1,21 @@
 #!/bin/sh
 set -e
 
-alembic upgrade head
+echo "[entrypoint] Waiting for database and applying migrations..."
+
+attempt=0
+max_attempts=30
+until alembic upgrade head; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "[entrypoint] alembic upgrade head failed after ${max_attempts} attempts"
+    exit 1
+  fi
+  echo "[entrypoint] Database not ready, retry in 2s (${attempt}/${max_attempts})..."
+  sleep 2
+done
+
+echo "[entrypoint] Migrations applied."
 
 python - <<'PY'
 import os
@@ -15,4 +29,10 @@ with session_factory() as session:
     run_seed(session)
 PY
 
-exec python -m bot.app
+echo "[entrypoint] Seed done. Starting: $*"
+
+if [ $# -eq 0 ]; then
+  set -- python -m bot.app
+fi
+
+exec "$@"
