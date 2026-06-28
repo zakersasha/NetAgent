@@ -1,7 +1,7 @@
 from html import escape
 
 from bot.billing import AccountStatusView, DeviceView, SubscriptionView
-from bot.device_presets import DevicePreset, selectable_device_presets
+from bot.device_presets import DEVICE_PRESETS, DevicePreset
 from bot.plans import Plan
 
 
@@ -329,6 +329,6 @@ def available_presets(subscription: SubscriptionView) -> tuple[DevicePreset, ...
     used = {device.slug for device in subscription.devices}
     return tuple(
         preset
-        for preset in selectable_device_presets()
+        for preset in DEVICE_PRESETS
         if preset.slug not in used
     )

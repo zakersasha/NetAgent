@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from bot.device_presets import get_device_preset, is_preset_selectable
+from bot.device_presets import get_device_preset
 from bot.plans import Plan as PlanView
 from netagent_common.device_id import make_device_id
 from netagent_common.vless_uri import build_vless_reality_uri
@@ -261,8 +261,6 @@ class BillingClient:
 
     def add_device(self, telegram_id: int, preset_slug: str) -> DeviceView:
         preset = get_device_preset(preset_slug)
-        if not is_preset_selectable(preset_slug):
-            raise BillingError(f"{preset.title} временно недоступно.")
         connection_uri = ""
 
         with self._session_factory() as session:
