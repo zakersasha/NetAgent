@@ -2,6 +2,7 @@ import asyncio
 
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.billing import (
@@ -13,7 +14,6 @@ from bot.billing import (
 )
 from bot.keyboards import (
     account_keyboard,
-    back_to_menu_keyboard,
     device_detail_keyboard,
     device_presets_keyboard,
     devices_keyboard,
@@ -21,8 +21,6 @@ from bot.keyboards import (
     payment_keyboard,
     share_keyboard,
     shop_keyboard,
-    support_keyboard,
-    vpn_menu_keyboard,
 )
 from bot.messages import (
     account_status_text,
@@ -40,8 +38,6 @@ from bot.messages import (
     plan_details_text,
     share_text,
     shop_text,
-    support_text,
-    vpn_menu_text,
     welcome_text,
 )
 from bot.settings import BotSettings
@@ -51,7 +47,8 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
     router = Router(name="netagent_bot")
 
     @router.message(CommandStart())
-    async def start(message: Message) -> None:
+    async def start(message: Message, state: FSMContext) -> None:
+        await state.clear()
         await message.answer(welcome_text(settings.service_name), reply_markup=main_menu())
 
     @router.message(Command("plans"))
@@ -63,7 +60,11 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
     async def cmd_devices(message: Message) -> None:
         subscription = billing.get_subscription(message.from_user.id)
         if not subscription:
-            await message.answer(no_subscription_text(), reply_markup=shop_keyboard(billing.plans("shop")))
+            status = billing.get_account_status(message.from_user.id)
+            await message.answer(
+                no_subscription_text(),
+                reply_markup=account_keyboard(status),
+            )
         else:
             await message.answer(
                 devices_text(subscription),
@@ -72,21 +73,16 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
 
     @router.message(Command("help"))
     async def cmd_help(message: Message) -> None:
+        status = billing.get_account_status(message.from_user.id)
         await message.answer(
             instructions_text(),
-            reply_markup=vpn_menu_keyboard(),
+            reply_markup=account_keyboard(status),
             disable_web_page_preview=True,
         )
 
-    @router.message(Command("support"))
-    async def cmd_support(message: Message) -> None:
-        await message.answer(
-            support_text(settings.support_contact),
-            reply_markup=support_keyboard(),
-        )
-
     @router.callback_query(lambda query: query.data == "menu")
-    async def menu(callback: CallbackQuery) -> None:
+    async def menu(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.clear()
         await callback.message.edit_text(
             welcome_text(settings.service_name),
             reply_markup=main_menu(),
@@ -94,11 +90,12 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
         await callback.answer()
 
     @router.callback_query(lambda query: query.data == "account")
-    async def account(callback: CallbackQuery) -> None:
+    async def account(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.clear()
         status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
             account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status.vpn_subscription is not None),
+            reply_markup=account_keyboard(status),
         )
         await callback.answer()
 
@@ -106,19 +103,6 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
     async def shop(callback: CallbackQuery) -> None:
         plans = billing.plans("shop")
         await callback.message.edit_text(shop_text(plans), reply_markup=shop_keyboard(plans))
-        await callback.answer()
-
-    @router.callback_query(lambda query: query.data == "vpn:menu")
-    async def vpn_menu(callback: CallbackQuery) -> None:
-        await callback.message.edit_text(vpn_menu_text(), reply_markup=vpn_menu_keyboard())
-        await callback.answer()
-
-    @router.callback_query(lambda query: query.data == "support")
-    async def support(callback: CallbackQuery) -> None:
-        await callback.message.edit_text(
-            support_text(settings.support_contact),
-            reply_markup=support_keyboard(),
-        )
         await callback.answer()
 
     @router.callback_query(lambda query: query.data == "share")
@@ -158,23 +142,20 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
             )
             return
 
-        if subscription.plan.product_type in ("vpn", "bundle"):
-            keyboard = devices_keyboard(subscription)
-        else:
-            keyboard = account_keyboard(False)
-
+        status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
             payment_success_text(subscription),
-            reply_markup=keyboard,
+            reply_markup=account_keyboard(status),
         )
 
     @router.callback_query(lambda query: query.data in {"my_key", "status"})
     async def my_key(callback: CallbackQuery) -> None:
         subscription = billing.get_subscription(callback.from_user.id)
         if not subscription:
+            status = billing.get_account_status(callback.from_user.id)
             await callback.message.edit_text(
                 no_subscription_text(),
-                reply_markup=shop_keyboard(billing.plans("shop")),
+                reply_markup=account_keyboard(status),
             )
         else:
             await callback.message.edit_text(
@@ -187,9 +168,10 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
     async def add_device_menu(callback: CallbackQuery) -> None:
         subscription = billing.get_subscription(callback.from_user.id)
         if not subscription:
+            status = billing.get_account_status(callback.from_user.id)
             await callback.message.edit_text(
                 no_subscription_text(),
-                reply_markup=shop_keyboard(billing.plans("shop")),
+                reply_markup=account_keyboard(status),
             )
             await callback.answer()
             return
@@ -249,14 +231,10 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
             )
             return
 
-        subscription = billing.get_subscription(callback.from_user.id)
-        if not subscription:
-            await callback.message.edit_text(no_subscription_text(), reply_markup=main_menu())
-            return
-
+        status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
-            devices_text(subscription),
-            reply_markup=devices_keyboard(subscription),
+            account_status_text(status, settings.ai_free_daily_limit),
+            reply_markup=account_keyboard(status),
         )
 
     @router.callback_query(lambda query: query.data and query.data.startswith("device:view:"))
@@ -271,7 +249,11 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
                     reply_markup=devices_keyboard(subscription),
                 )
             else:
-                await callback.message.edit_text(no_subscription_text(), reply_markup=main_menu())
+                status = billing.get_account_status(callback.from_user.id)
+                await callback.message.edit_text(
+                    no_subscription_text(),
+                    reply_markup=account_keyboard(status),
+                )
             await callback.answer()
             return
 
@@ -295,21 +277,16 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
 
         subscription = billing.get_subscription(callback.from_user.id)
         if not subscription:
-            await callback.message.edit_text(no_subscription_text(), reply_markup=main_menu())
+            status = billing.get_account_status(callback.from_user.id)
+            await callback.message.edit_text(
+                no_subscription_text(),
+                reply_markup=account_keyboard(status),
+            )
         else:
             await callback.message.edit_text(
                 devices_text(subscription),
                 reply_markup=devices_keyboard(subscription),
             )
         await callback.answer("Удалено")
-
-    @router.callback_query(lambda query: query.data == "instructions")
-    async def instructions(callback: CallbackQuery) -> None:
-        await callback.message.edit_text(
-            instructions_text(),
-            reply_markup=vpn_menu_keyboard(),
-            disable_web_page_preview=True,
-        )
-        await callback.answer()
 
     return router

@@ -1,17 +1,18 @@
 from html import escape
 
 from bot.billing import AccountStatusView, DeviceView, SubscriptionView
-from bot.device_presets import DEVICE_PRESETS, DevicePreset
+from bot.device_presets import DevicePreset, selectable_device_presets
 from bot.plans import Plan
 
 
 def welcome_text(service_name: str) -> str:
     return (
         f"👋 <b>{escape(service_name)}</b>\n\n"
-        "Здесь можно <b>общаться с AI</b> и при необходимости "
-        "настроить <b>стабильное подключение</b>.\n\n"
-        "🆓 AI — 3 сообщения в день бесплатно\n"
-        "💳 Тарифы — на 30 дней, оплата в пару кликов\n\n"
+        "Ваш умный помощник в Telegram: <b>чат с AI</b>, ответы на вопросы, "
+        "идеи и подсказки на каждый день.\n\n"
+        "🆓 <b>3 сообщения AI</b> бесплатно каждый день\n"
+        "💬 Подписка — безлимитный чат с ассистентом\n"
+        "🌐 Тарифы Combo — AI + стабильное подключение\n\n"
         "Выберите действие 👇"
     )
 
@@ -22,38 +23,59 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
     if status.vpn_subscription:
         sub = status.vpn_subscription
         rows.append(
-            f"\n🌐 <b>Подключение</b>\n"
+            f"\n🌐 <b>Подключение</b> · активно\n"
             f"Тариф: {escape(sub.plan.name)}\n"
             f"До: <b>{sub.expires_at.strftime('%d.%m.%Y')}</b> "
             f"({sub.days_left} дн.)\n"
             f"Устройств: {len(sub.devices)} / {sub.plan.device_limit}"
         )
+        rows.append("\n\n" + instructions_short_text())
+        if sub.devices:
+            for device in sub.devices:
+                rows.append(
+                    f"\n\n{device.emoji} <b>{escape(device.display_name)}</b>\n"
+                    f"<code>{escape(device.connection_uri)}</code>"
+                )
+        else:
+            rows.append(
+                "\n\n🔑 Ключ появится после добавления устройства — "
+                "кнопка «Добавить устройство» ниже."
+            )
     else:
-        rows.append("\n🌐 <b>Подключение</b> — не активно")
+        rows.append("\n🌐 <b>Подключение</b> · не активно")
 
     if status.has_ai_unlimited:
         if status.ai_subscription:
             sub = status.ai_subscription
             rows.append(
-                f"\n\n💬 <b>AI-ассистент</b>\n"
+                f"\n\n💬 <b>AI-ассистент</b> · без лимита\n"
                 f"Тариф: {escape(sub.plan.name)}\n"
                 f"До: <b>{sub.expires_at.strftime('%d.%m.%Y')}</b> "
-                f"({sub.days_left} дн.)\n"
-                "Сообщений: <b>без лимита</b>"
+                f"({sub.days_left} дн.)"
             )
         else:
-            rows.append("\n\n💬 <b>AI-ассистент</b> — без лимита")
+            rows.append("\n\n💬 <b>AI-ассистент</b> · без лимита")
     else:
         rows.append(
             f"\n\n💬 <b>AI-ассистент</b> (бесплатно)\n"
-            f"Сегодня осталось: <b>{status.ai_free_remaining}</b> "
-            f"из {free_daily_limit}"
+            f"Сегодня: <b>{status.ai_free_remaining}</b> из {free_daily_limit}"
         )
 
-    if not status.vpn_subscription and not status.has_ai_unlimited:
-        rows.append("\n\n💡 Выберите «Тарифы» — Combo даёт всё в одном.")
+    if not status.vpn_subscription:
+        rows.append(
+            "\n\n💡 Подписки нет — откройте «Тарифы» и выберите подходящий план."
+        )
 
     return "\n".join(rows)
+
+
+def instructions_short_text() -> str:
+    return (
+        "📖 <b>Как подключить</b>\n"
+        "1. Скопируйте ключ ниже.\n"
+        "2. Установите приложение (v2rayNG, Streisand, Hiddify).\n"
+        "3. «Импорт» → вставьте ключ → включите."
+    )
 
 
 def shop_text(plans: tuple[Plan, ...]) -> str:
@@ -128,7 +150,7 @@ def payment_success_text(subscription: SubscriptionView) -> str:
             "✅ <b>Оплачено!</b>\n\n"
             f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
             f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-            "🌐 «Подключение» → добавьте устройство и получите ключ.\n"
+            "📋 «Моя подписка» — ключ и инструкция.\n"
             "💬 «Чат с ассистентом» — AI без лимита."
         )
     if subscription.plan.product_type == "ai":
@@ -142,17 +164,7 @@ def payment_success_text(subscription: SubscriptionView) -> str:
         "✅ <b>Оплачено!</b>\n\n"
         f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
         f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-        "«Подключение» → «Мои ключи» → добавьте устройство."
-    )
-
-
-def vpn_menu_text() -> str:
-    return (
-        "🌐 <b>Подключение</b>\n\n"
-        "1. Оплатите тариф с подключением (или Combo).\n"
-        "2. «Мои ключи» — добавьте телефон или ноутбук.\n"
-        "3. «Как подключить» — пошаговая инструкция.\n\n"
-        "Нужна помощь — «Поддержка» в главном меню."
+        "📋 «Моя подписка» — добавьте устройство и скопируйте ключ."
     )
 
 
@@ -180,7 +192,7 @@ def device_detail_text(device: DeviceView) -> str:
         f"{device.emoji} <b>{escape(device.display_name)}</b>\n\n"
         "🔑 <b>Ваш ключ</b>\n"
         f"<code>{escape(device.connection_uri)}</code>\n\n"
-        "Скопируйте и вставьте в приложение (см. «Как подключить»)."
+        "Скопируйте и вставьте в приложение."
     )
 
 
@@ -195,9 +207,8 @@ def add_device_text(subscription: SubscriptionView) -> str:
 
 def no_subscription_text() -> str:
     return (
-        "🔑 <b>Нет активного тарифа с подключением</b>\n\n"
-        "Выберите тариф Combo или Connect в «Тарифы», "
-        "затем добавьте устройство здесь."
+        "📋 <b>Подписка не активна</b>\n\n"
+        "Выберите тариф в «Тарифы» — Combo даёт AI и подключение в одном."
     )
 
 
@@ -227,7 +238,7 @@ def device_limit_exceeded_text() -> str:
 def instructions_text() -> str:
     return (
         "📖 <b>Как подключить</b>\n\n"
-        "1. «Мои ключи» → добавьте устройство → скопируйте ключ.\n"
+        "1. «Моя подписка» → скопируйте ключ.\n"
         "2. Установите приложение на телефон или ПК.\n"
         "3. В приложении: «+» или «Импорт» → вставьте ключ.\n"
         "4. Включите подключение.\n\n"
@@ -244,11 +255,38 @@ def instructions_text() -> str:
     )
 
 
-def support_text(contact: str) -> str:
+def support_prompt_text() -> str:
     return (
         "🆘 <b>Поддержка</b>\n\n"
-        f"Напишите: <b>{escape(contact)}</b>\n\n"
-        "Поможем с оплатой, ключами и настройкой."
+        "Выберите тему или просто напишите, что не работает — "
+        "мы сохраним обращение и ответим."
+    )
+
+
+def support_received_text() -> str:
+    return (
+        "✅ <b>Обращение отправлено</b>\n\n"
+        "Мы получили ваше сообщение и скоро ответим."
+    )
+
+
+def support_notify_text(
+    ticket_id: int,
+    telegram_id: int,
+    category: str | None,
+    message: str,
+) -> str:
+    if category == "vpn":
+        topic = "🌐 Подключение"
+    elif category == "ai":
+        topic = "💬 AI-чат"
+    else:
+        topic = "📩 Без категории"
+    return (
+        f"🆘 <b>Обращение #{ticket_id}</b>\n"
+        f"Тема: {topic}\n"
+        f"Пользователь: <code>{telegram_id}</code>\n\n"
+        f"{escape(message)}"
     )
 
 
@@ -289,4 +327,8 @@ def ai_generating_text(frame: int) -> str:
 
 def available_presets(subscription: SubscriptionView) -> tuple[DevicePreset, ...]:
     used = {device.slug for device in subscription.devices}
-    return tuple(preset for preset in DEVICE_PRESETS if preset.slug not in used)
+    return tuple(
+        preset
+        for preset in selectable_device_presets()
+        if preset.slug not in used
+    )

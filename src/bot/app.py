@@ -11,6 +11,8 @@ from bot.ai_service import AiChatService
 from bot.billing import BillingClient
 from bot.commands import setup_bot_commands
 from bot.handlers import create_router
+from bot.support_handlers import create_support_router
+from bot.support_service import SupportService
 from bot.settings import get_bot_settings
 from netagent_common.openai_client import OpenAIChatClient
 from netagent_common.proxy_urls import parse_proxy_urls, ProxyRotator
@@ -112,6 +114,7 @@ async def main() -> None:
         timezone=settings.timezone,
         free_daily_limit=settings.ai_free_daily_limit,
     )
+    support_service = SupportService(session_factory=session_factory)
 
     dispatcher = Dispatcher(storage=MemoryStorage())
     bot = await create_bot_with_proxy_fallback(token, bot_proxy_rotator)
@@ -119,6 +122,7 @@ async def main() -> None:
     bot_username = me.username or "bot"
 
     dispatcher.include_router(create_ai_router(settings, billing, ai_service))
+    dispatcher.include_router(create_support_router(settings, support_service))
     dispatcher.include_router(create_router(settings, billing, bot_username))
 
     await setup_bot_commands(bot)

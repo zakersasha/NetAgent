@@ -1,64 +1,61 @@
 # Брендинг Telegram-бота (BotFather)
 
-Без слова «VPN» в публичных текстах. Акцент: личный канал, стабильный доступ, простое подключение.
+Акцент: **AI-ассистент** в Telegram. Подключение — дополнительная опция в тарифах, без акцента на VPN в публичных текстах.
+
+Описание и short description задаются автоматически при запуске бота (`setMyDescription`). Ниже — тексты для ручной настройки в BotFather, если нужно.
 
 ## Описание бота (Description, до 512 символов)
 
 ```
-Личный канал для стабильного доступа к сайтам и приложениям.
-Тарифы на 30 дней, ключ в боте, инструкции для телефона и ПК.
-Поддержка: @sashakharlamov
+AI-ассистент в Telegram: задайте вопрос и получите ответ.
+3 сообщения бесплатно каждый день.
+Тарифы: безлимитный чат, Combo — AI + стабильное подключение.
+Поддержка: /support
 ```
 
 ## Короткое описание (Short description)
 
 ```
-Ключ подключения за пару минут. Тарифы, инструкции, поддержка.
+AI-ассистент и подписки. Чат, тарифы, поддержка.
 ```
 
-## Текст кнопки Start / приветствие (About или welcome в BotFather)
+## Текст кнопки Start / приветствие
 
 ```
-Добро пожаловать! Здесь вы получите персональный ключ для стабильного доступа.
-Выберите тариф, скопируйте ключ и подключите в приложении — шаги в «Инструкции».
+Ваш умный помощник: чат с AI, ответы на вопросы и идеи на каждый день.
+3 сообщения бесплатно. Тарифы — безлимитный чат и Combo с подключением.
 ```
 
 ## Промпт для картинки бота (аватар 512×512)
 
 ```
-Minimal modern app icon for a Telegram bot about personal secure internet access.
-Abstract glowing key or link symbol in the center, soft blue and teal gradient background,
-clean geometric shapes, subtle network lines, friendly and trustworthy mood.
+Minimal modern app icon for a Telegram AI assistant bot.
+Friendly chat bubble with subtle sparkles, soft blue and purple gradient,
+clean geometric shapes, trustworthy and approachable mood.
 No text, no VPN word, no flags, no prohibited symbols.
-Flat vector style, rounded corners feel, high contrast, suitable for small circular avatar.
-Professional SaaS aesthetic, light and airy, not dark hacker style.
+Flat vector style, suitable for small circular avatar.
 ```
 
-Альтернатива (более «продающий» вариант):
-
-```
-Friendly Telegram bot avatar: abstract shield made of connected dots and a small keyhole,
-gradient from sky blue to mint green, white highlights, minimal flat design,
-positive and simple, no words, no VPN labels, 512x512 app icon style.
-```
-
-## Команды бота (опционально)
+## Команды бота
 
 | Команда | Описание |
 |---------|----------|
 | `/start` | Главное меню |
+| `/chat` | Чат с ассистентом |
 | `/plans` | Тарифы |
-| `/devices` | Мои устройства |
-| `/help` | Инструкции |
+| `/devices` | Мои ключи |
+| `/help` | Как подключить |
 | `/support` | Поддержка |
+| `/stop` | Выйти из чата |
 
-Команды регистрируются автоматически при запуске бота (`setMyCommands`).
+Команды и описание регистрируются автоматически при запуске бота.
 
 ## Настройки в `.env`
 
 ```env
 BOT_SERVICE_NAME=NetAgent
 BOT_SUPPORT_CONTACT=@sashakharlamov
+SUPPORT_NOTIFY_TELEGRAM_ID=123456789
 ```
 
-Кнопка «Поддержка» в боте ведёт на https://t.me/sashakharlamov
+`SUPPORT_NOTIFY_TELEGRAM_ID` — ваш числовой Telegram ID для оповещений о тикетах поддержки.

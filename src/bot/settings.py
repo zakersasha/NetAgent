@@ -12,6 +12,7 @@ class BotSettings(BaseSettings):
     payment_provider: str = Field("mock", alias="PAYMENT_PROVIDER")
     service_name: str = Field("NetAgent", alias="BOT_SERVICE_NAME")
     support_contact: str = Field("@sashakharlamov", alias="BOT_SUPPORT_CONTACT")
+    support_notify_telegram_id: int = Field(0, alias="SUPPORT_NOTIFY_TELEGRAM_ID")
     timezone: str = Field("Europe/Moscow", alias="TIMEZONE")
     xray_public_host: str = Field("45.93.137.80", alias="XRAY_PUBLIC_HOST")
     xray_public_port: int = Field(443, alias="XRAY_PUBLIC_PORT")
