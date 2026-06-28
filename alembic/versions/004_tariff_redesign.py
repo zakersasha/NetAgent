@@ -23,6 +23,69 @@ NEW_PLANS = [
 ]
 
 
+def _plan_params(
+    slug: str,
+    name: str,
+    desc: str,
+    price: int,
+    device_limit: int,
+    sort_order: int,
+    product_type: str,
+) -> sa.TextClause:
+    return sa.text(
+        """
+        INSERT INTO plans (
+            slug, name, description, duration_days, price_rub,
+            device_limit, is_active, sort_order, product_type
+        )
+        SELECT
+            :slug, :name, :description, 30, :price,
+            :device_limit, true, :sort_order, :product_type
+        WHERE NOT EXISTS (SELECT 1 FROM plans WHERE slug = :slug)
+        """
+    ).bindparams(
+        slug=slug,
+        name=name,
+        description=desc,
+        price=price,
+        device_limit=device_limit,
+        sort_order=sort_order,
+        product_type=product_type,
+    )
+
+
+def _plan_update_params(
+    slug: str,
+    name: str,
+    desc: str,
+    price: int,
+    device_limit: int,
+    sort_order: int,
+    product_type: str,
+) -> sa.TextClause:
+    return sa.text(
+        """
+        UPDATE plans SET
+            name = :name,
+            description = :description,
+            price_rub = :price,
+            device_limit = :device_limit,
+            sort_order = :sort_order,
+            product_type = :product_type,
+            is_active = true
+        WHERE slug = :slug
+        """
+    ).bindparams(
+        slug=slug,
+        name=name,
+        description=desc,
+        price=price,
+        device_limit=device_limit,
+        sort_order=sort_order,
+        product_type=product_type,
+    )
+
+
 def upgrade() -> None:
     op.execute(
         sa.text(
@@ -31,52 +94,9 @@ def upgrade() -> None:
         )
     )
     for slug, name, desc, price, device_limit, sort_order, product_type in NEW_PLANS:
+        op.execute(_plan_params(slug, name, desc, price, device_limit, sort_order, product_type))
         op.execute(
-            sa.text(
-                """
-                INSERT INTO plans (
-                    slug, name, description, duration_days, price_rub,
-                    device_limit, is_active, sort_order, product_type
-                )
-                SELECT
-                    :slug, :name, :description, 30, :price,
-                    :device_limit, true, :sort_order, :product_type
-                WHERE NOT EXISTS (SELECT 1 FROM plans WHERE slug = :slug)
-                """
-            ),
-            {
-                "slug": slug,
-                "name": name,
-                "description": desc,
-                "price": price,
-                "device_limit": device_limit,
-                "sort_order": sort_order,
-                "product_type": product_type,
-            },
-        )
-        op.execute(
-            sa.text(
-                """
-                UPDATE plans SET
-                    name = :name,
-                    description = :description,
-                    price_rub = :price,
-                    device_limit = :device_limit,
-                    sort_order = :sort_order,
-                    product_type = :product_type,
-                    is_active = true
-                WHERE slug = :slug
-                """
-            ),
-            {
-                "slug": slug,
-                "name": name,
-                "description": desc,
-                "price": price,
-                "device_limit": device_limit,
-                "sort_order": sort_order,
-                "product_type": product_type,
-            },
+            _plan_update_params(slug, name, desc, price, device_limit, sort_order, product_type)
         )
 
 
