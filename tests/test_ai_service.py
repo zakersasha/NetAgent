@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from unittest.mock import MagicMock
 
 from bot.ai_service import AiChatService, AiQuotaExceededError
+from bot.billing import BillingClient
 from netagent_db.base import Base
 from netagent_db.seed import seed_plans
 
@@ -33,12 +34,10 @@ def test_free_quota_blocks_after_limit(ai_service: AiChatService) -> None:
         ai_service.complete_message(42, "again")
 
 
-def test_ai_subscription_unlimited(ai_service: AiChatService) -> None:
-    from bot.billing import BillingClient
-
+def test_combo_grants_unlimited_ai(ai_service: AiChatService) -> None:
     session_factory = ai_service._session_factory
     billing = BillingClient(session_factory=session_factory, public_host="1.2.3.4")
-    billing.activate_mock_payment(99, "ai_plus")
+    billing.activate_mock_payment(99, "combo")
 
     for _ in range(5):
         assert ai_service.complete_message(99, "msg") == "AI reply"

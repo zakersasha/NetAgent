@@ -98,6 +98,7 @@ async def main() -> None:
         reality_short_id=settings.reality_short_id,
         vless_flow=settings.vless_flow,
         xray_agent=xray_agent,
+        ai_free_daily_limit=settings.ai_free_daily_limit,
     )
     openai_client = OpenAIChatClient(
         api_keys=openai_keys,
@@ -113,10 +114,13 @@ async def main() -> None:
     )
 
     dispatcher = Dispatcher(storage=MemoryStorage())
-    dispatcher.include_router(create_ai_router(settings, billing, ai_service))
-    dispatcher.include_router(create_router(settings, billing))
-
     bot = await create_bot_with_proxy_fallback(token, bot_proxy_rotator)
+    me = await bot.get_me()
+    bot_username = me.username or "bot"
+
+    dispatcher.include_router(create_ai_router(settings, billing, ai_service))
+    dispatcher.include_router(create_router(settings, billing, bot_username))
+
     await setup_bot_commands(bot)
     await dispatcher.start_polling(bot)
 

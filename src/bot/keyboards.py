@@ -11,64 +11,75 @@ SUPPORT_URL = "https://t.me/sashakharlamov"
 
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="💬 Чат с AI", callback_data="ai:open")
-    builder.button(text="⭐ AI Plus", callback_data="ai:plans")
-    builder.button(text="🔐 Pro доступ", callback_data="pro:menu")
-    builder.button(text="💬 Поддержка", url=SUPPORT_URL)
-    builder.adjust(1, 2, 1)
+    builder.button(text="💬 Чат с ассистентом", callback_data="ai:open")
+    builder.button(text="📋 Моя подписка", callback_data="account")
+    builder.button(text="💳 Тарифы", callback_data="shop")
+    builder.button(text="🌐 Подключение", callback_data="vpn:menu")
+    builder.button(text="👥 Поделиться", callback_data="share")
+    builder.button(text="🆘 Поддержка", callback_data="support")
+    builder.adjust(1, 2, 2, 1)
     return builder.as_markup()
 
 
-def pro_menu_keyboard() -> InlineKeyboardMarkup:
+def vpn_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔑 Мой ключ", callback_data="my_key")
-    builder.button(text="📦 Тарифы Pro", callback_data="plans")
-    builder.button(text="📖 Инструкции", callback_data="instructions")
+    builder.button(text="🔑 Мои ключи", callback_data="my_key")
+    builder.button(text="📖 Как подключить", callback_data="instructions")
+    builder.button(text="⬅️ Назад", callback_data="menu")
+    builder.adjust(1, 1, 1)
+    return builder.as_markup()
+
+
+def shop_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    bundles = [p for p in plans if p.product_type == "bundle"]
+    vpns = [p for p in plans if p.product_type == "vpn"]
+    ais = [p for p in plans if p.product_type == "ai"]
+
+    for plan in bundles:
+        badge = "🔥 " if plan.slug == "combo" else "⭐ "
+        builder.button(
+            text=f"{badge}{plan.name} · {plan.price_rub} ₽",
+            callback_data=f"plan:{plan.slug}",
+        )
+    for plan in vpns:
+        builder.button(
+            text=f"🌐 {plan.name} · {plan.price_rub} ₽",
+            callback_data=f"plan:{plan.slug}",
+        )
+    for plan in ais:
+        builder.button(
+            text=f"💬 {plan.name} · {plan.price_rub} ₽",
+            callback_data=f"plan:{plan.slug}",
+        )
     builder.button(text="⬅️ Главное меню", callback_data="menu")
-    builder.adjust(1, 2, 1)
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def account_keyboard(has_vpn: bool) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if has_vpn:
+        builder.button(text="🔑 Мои ключи", callback_data="my_key")
+    builder.button(text="💳 Продлить / сменить тариф", callback_data="shop")
+    builder.button(text="💬 Чат с ассистентом", callback_data="ai:open")
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
+    builder.adjust(1)
     return builder.as_markup()
 
 
 def ai_chat_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="⭐ AI Plus", callback_data="ai:plans")
+    builder.button(text="📋 Моя подписка", callback_data="account")
     builder.button(text="⬅️ Выйти из чата", callback_data="ai:leave")
-    builder.button(text="⬅️ Главное меню", callback_data="menu")
-    builder.adjust(1, 2)
-    return builder.as_markup()
-
-
-def ai_plans_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for plan in plans:
-        builder.button(
-            text=f"⭐ {plan.name} · {plan.price_rub} ₽",
-            callback_data=f"plan:{plan.slug}",
-        )
-    builder.button(text="⬅️ Главное меню", callback_data="menu")
-    builder.adjust(1)
-    return builder.as_markup()
-
-
-def plans_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for plan in plans:
-        builder.button(
-            text=f"✨ {plan.name} · {plan.price_rub} ₽ · до {plan.device_limit} устр.",
-            callback_data=f"plan:{plan.slug}",
-        )
-    builder.button(text="⬅️ Pro доступ", callback_data="pro:menu")
-    builder.adjust(1)
+    builder.adjust(2)
     return builder.as_markup()
 
 
 def payment_keyboard(plan: Plan) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text=f"✅ Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
-    if plan.product_type == "ai":
-        builder.button(text="⭐ Другой тариф", callback_data="ai:plans")
-    else:
-        builder.button(text="📦 Другой тариф", callback_data="plans")
+    builder.button(text="💳 Другие тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -85,7 +96,7 @@ def devices_keyboard(subscription: SubscriptionView) -> InlineKeyboardMarkup:
     if len(subscription.devices) < subscription.plan.device_limit:
         builder.button(text="➕ Добавить устройство", callback_data="device:add")
 
-    builder.button(text="⬅️ Pro доступ", callback_data="pro:menu")
+    builder.button(text="⬅️ Подключение", callback_data="vpn:menu")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -106,7 +117,7 @@ def device_detail_keyboard(device_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🗑 Удалить устройство", callback_data=f"device:remove:{device_id}")
     builder.button(text="⬅️ К устройствам", callback_data="my_key")
-    builder.button(text="⬅️ Pro доступ", callback_data="pro:menu")
+    builder.button(text="⬅️ Подключение", callback_data="vpn:menu")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -120,6 +131,18 @@ def back_to_menu_keyboard() -> InlineKeyboardMarkup:
 def support_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="💬 Написать в поддержку", url=SUPPORT_URL)
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def share_keyboard(bot_username: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    share_text = (
+        f"Попробуй этого бота — AI-ассистент и стабильный интернет: "
+        f"https://t.me/{bot_username}"
+    )
+    builder.button(text="📨 Отправить другу", switch_inline_query=share_text)
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()

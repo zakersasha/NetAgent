@@ -68,7 +68,7 @@ class DeviceView:
 
 
 class SubscriptionView:
-    __slots__ = ("telegram_id", "plan", "expires_at", "devices")
+    __slots__ = ("telegram_id", "plan", "expires_at", "devices", "days_left")
 
     def __init__(
         self,
@@ -76,11 +76,37 @@ class SubscriptionView:
         plan: PlanView,
         expires_at: datetime,
         devices: tuple[DeviceView, ...] = (),
+        days_left: int = 0,
     ) -> None:
         self.telegram_id = telegram_id
         self.plan = plan
         self.expires_at = expires_at
         self.devices = devices
+        self.days_left = days_left
+
+
+class AccountStatusView:
+    __slots__ = (
+        "telegram_id",
+        "vpn_subscription",
+        "ai_subscription",
+        "ai_free_remaining",
+        "has_ai_unlimited",
+    )
+
+    def __init__(
+        self,
+        telegram_id: int,
+        vpn_subscription: SubscriptionView | None,
+        ai_subscription: SubscriptionView | None,
+        ai_free_remaining: int,
+        has_ai_unlimited: bool,
+    ) -> None:
+        self.telegram_id = telegram_id
+        self.vpn_subscription = vpn_subscription
+        self.ai_subscription = ai_subscription
+        self.ai_free_remaining = ai_free_remaining
+        self.has_ai_unlimited = has_ai_unlimited
 
 
 class BillingClient:
@@ -95,6 +121,7 @@ class BillingClient:
         reality_short_id: str = "6ba85179e30d4fc3",
         vless_flow: str = "xtls-rprx-vision",
         xray_agent: XrayAgentClient | None = None,
+        ai_free_daily_limit: int = 3,
     ) -> None:
         self._session_factory = session_factory
         self.public_host = public_host
@@ -105,22 +132,62 @@ class BillingClient:
         self.reality_short_id = reality_short_id
         self.vless_flow = vless_flow
         self._xray_agent = xray_agent
+        self._ai_free_daily_limit = max(1, ai_free_daily_limit)
 
     def plans(self, product_type: str | None = None) -> tuple[PlanView, ...]:
         with self._session_factory() as session:
             query = select(Plan).where(Plan.is_active.is_(True))
             if product_type:
-                query = query.where(Plan.product_type == product_type)
+                if product_type == "bundle":
+                    query = query.where(Plan.product_type == "bundle")
+                elif product_type == "vpn":
+                    query = query.where(Plan.product_type == "vpn")
+                elif product_type == "ai":
+                    query = query.where(Plan.product_type == "ai")
+                elif product_type == "shop":
+                    query = query.where(Plan.product_type.in_(("bundle", "vpn", "ai")))
             rows = session.scalars(query.order_by(Plan.sort_order)).all()
             return tuple(self._plan_view(row) for row in rows)
 
+    def get_plan(self, slug: str) -> PlanView | None:
+        with self._session_factory() as session:
+            row = session.scalar(select(Plan).where(Plan.slug == slug, Plan.is_active.is_(True)))
+            return self._plan_view(row) if row else None
+
+    def get_account_status(self, telegram_id: int) -> AccountStatusView:
+        with self._session_factory() as session:
+            vpn_sub = self._load_subscription_view(session, telegram_id, line="vpn")
+            ai_sub = self._load_subscription_view(session, telegram_id, line="ai")
+            has_ai = ai_sub is not None
+            free_remaining = self._ai_free_daily_limit
+            if not has_ai:
+                user = session.scalar(select(User).where(User.telegram_id == telegram_id))
+                if user:
+                    from netagent_db.models import AiDailyUsage
+
+                    today = datetime.now(self.timezone).date()
+                    used = session.scalar(
+                        select(AiDailyUsage.message_count).where(
+                            AiDailyUsage.user_id == user.id,
+                            AiDailyUsage.usage_date == today,
+                        )
+                    ) or 0
+                    free_remaining = max(0, self._ai_free_daily_limit - used)
+            return AccountStatusView(
+                telegram_id=telegram_id,
+                vpn_subscription=vpn_sub,
+                ai_subscription=ai_sub,
+                ai_free_remaining=free_remaining,
+                has_ai_unlimited=has_ai,
+            )
+
     def get_subscription(self, telegram_id: int) -> SubscriptionView | None:
         with self._session_factory() as session:
-            return self._load_subscription_view(session, telegram_id, product_type="vpn")
+            return self._load_subscription_view(session, telegram_id, line="vpn")
 
     def get_ai_subscription(self, telegram_id: int) -> SubscriptionView | None:
         with self._session_factory() as session:
-            return self._load_subscription_view(session, telegram_id, product_type="ai")
+            return self._load_subscription_view(session, telegram_id, line="ai")
 
     def activate_mock_payment(self, telegram_id: int, plan_slug: str) -> SubscriptionView:
         with self._session_factory() as session:
@@ -132,32 +199,44 @@ class BillingClient:
             now = datetime.now(self.timezone)
             expires_at = now + timedelta(days=plan.duration_days)
 
-            subscription = session.scalar(
-                select(Subscription)
-                .join(Plan, Subscription.plan_id == Plan.id)
-                .where(
-                    Subscription.user_id == user.id,
-                    Subscription.status == "active",
-                    Plan.product_type == plan.product_type,
-                )
-                .order_by(Subscription.expires_at.desc())
-            )
-            if subscription:
-                subscription.plan_id = plan.id
-                subscription.device_limit = plan.device_limit
-                subscription.starts_at = now
-                subscription.expires_at = expires_at
+            purchased_type = plan.product_type
+            if purchased_type == "bundle":
+                types_to_expire = ("vpn", "ai", "bundle")
+            elif purchased_type == "vpn":
+                types_to_expire = ("vpn", "bundle")
             else:
-                subscription = Subscription(
-                    user_id=user.id,
-                    plan_id=plan.id,
-                    status="active",
-                    device_limit=plan.device_limit,
-                    starts_at=now,
-                    expires_at=expires_at,
-                )
-                session.add(subscription)
-                session.flush()
+                types_to_expire = ("ai", "bundle")
+
+            old_sub_ids = list(
+                session.scalars(
+                    select(Subscription.id)
+                    .join(Plan, Subscription.plan_id == Plan.id)
+                    .where(
+                        Subscription.user_id == user.id,
+                        Subscription.status == "active",
+                        Plan.product_type.in_(types_to_expire),
+                    )
+                ).all()
+            )
+
+            self._expire_conflicting_subscriptions(session, user.id, plan.product_type)
+
+            subscription = Subscription(
+                user_id=user.id,
+                plan_id=plan.id,
+                status="active",
+                device_limit=plan.device_limit,
+                starts_at=now,
+                expires_at=expires_at,
+            )
+            session.add(subscription)
+            session.flush()
+
+            if plan.product_type in ("vpn", "bundle") and old_sub_ids:
+                for device in session.scalars(
+                    select(Device).where(Device.subscription_id.in_(old_sub_ids))
+                ).all():
+                    device.subscription_id = subscription.id
 
             session.add(
                 Payment(
@@ -171,16 +250,13 @@ class BillingClient:
                 )
             )
             session.commit()
-            if plan.product_type == "ai":
-                return self._load_subscription_view(session, telegram_id, product_type="ai") or SubscriptionView(
-                    telegram_id=telegram_id,
-                    plan=self._plan_view(plan),
-                    expires_at=expires_at,
-                )
-            return self._load_subscription_view(session, telegram_id, product_type="vpn") or SubscriptionView(
+
+            line = "vpn" if plan.product_type in ("vpn", "bundle") else "ai"
+            return self._load_subscription_view(session, telegram_id, line=line) or SubscriptionView(
                 telegram_id=telegram_id,
                 plan=self._plan_view(plan),
                 expires_at=expires_at,
+                days_left=self._days_left(expires_at),
             )
 
     def add_device(self, telegram_id: int, preset_slug: str) -> DeviceView:
@@ -188,7 +264,7 @@ class BillingClient:
         connection_uri = ""
 
         with self._session_factory() as session:
-            subscription = self._get_active_subscription(session, telegram_id)
+            subscription = self._get_active_subscription(session, telegram_id, line="vpn")
             if not subscription:
                 raise NoSubscriptionError("Сначала выберите тариф.")
 
@@ -308,9 +384,10 @@ class BillingClient:
         self,
         session: Session,
         telegram_id: int,
-        product_type: str = "vpn",
+        line: str = "vpn",
     ) -> Subscription | None:
         now = datetime.now(self.timezone)
+        product_types = self._product_types_for_line(line)
         return session.scalar(
             select(Subscription)
             .join(User, Subscription.user_id == User.id)
@@ -318,7 +395,7 @@ class BillingClient:
             .where(
                 User.telegram_id == telegram_id,
                 Subscription.status == "active",
-                Plan.product_type == product_type,
+                Plan.product_type.in_(product_types),
                 Subscription.expires_at.is_not(None),
                 Subscription.expires_at > now,
             )
@@ -330,12 +407,31 @@ class BillingClient:
         self,
         session: Session,
         telegram_id: int,
-        product_type: str = "vpn",
+        line: str = "vpn",
     ) -> SubscriptionView | None:
-        subscription = self._get_active_subscription(session, telegram_id, product_type)
+        subscription = self._get_active_subscription(session, telegram_id, line)
         if not subscription:
             return None
 
+        devices: tuple[DeviceView, ...] = ()
+        if line == "vpn" and subscription.plan.product_type in ("vpn", "bundle"):
+            devices = self._load_device_views(session, telegram_id, subscription)
+
+        expires_at = subscription.expires_at or datetime.now(self.timezone)
+        return SubscriptionView(
+            telegram_id=telegram_id,
+            plan=self._plan_view(subscription.plan),
+            expires_at=expires_at,
+            devices=devices,
+            days_left=self._days_left(expires_at),
+        )
+
+    def _load_device_views(
+        self,
+        session: Session,
+        telegram_id: int,
+        subscription: Subscription,
+    ) -> tuple[DeviceView, ...]:
         devices = session.scalars(
             select(Device)
             .join(User, Device.user_id == User.id)
@@ -346,8 +442,7 @@ class BillingClient:
             )
             .order_by(Device.created_at)
         ).all()
-
-        device_views = tuple(
+        return tuple(
             DeviceView(
                 id=device.id,
                 slug=device.device_slug,
@@ -361,12 +456,42 @@ class BillingClient:
             for device in devices
         )
 
-        return SubscriptionView(
-            telegram_id=telegram_id,
-            plan=self._plan_view(subscription.plan),
-            expires_at=subscription.expires_at or datetime.now(self.timezone),
-            devices=device_views,
-        )
+    def _expire_conflicting_subscriptions(
+        self,
+        session: Session,
+        user_id: int,
+        purchased_type: str,
+    ) -> None:
+        if purchased_type == "bundle":
+            types_to_expire = ("vpn", "ai", "bundle")
+        elif purchased_type == "vpn":
+            types_to_expire = ("vpn", "bundle")
+        else:
+            types_to_expire = ("ai", "bundle")
+
+        subs = session.scalars(
+            select(Subscription)
+            .join(Plan, Subscription.plan_id == Plan.id)
+            .where(
+                Subscription.user_id == user_id,
+                Subscription.status == "active",
+                Plan.product_type.in_(types_to_expire),
+            )
+        ).all()
+        for sub in subs:
+            sub.status = "expired"
+
+    def _product_types_for_line(self, line: str) -> tuple[str, ...]:
+        if line == "vpn":
+            return ("vpn", "bundle")
+        return ("ai", "bundle")
+
+    def _days_left(self, expires_at: datetime) -> int:
+        now = datetime.now(self.timezone)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=self.timezone)
+        delta = expires_at - now
+        return max(0, delta.days)
 
     def _plan_view(self, plan: Plan) -> PlanView:
         return PlanView(

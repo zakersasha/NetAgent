@@ -83,7 +83,7 @@ class AiChatService:
             .where(
                 User.telegram_id == telegram_id,
                 Subscription.status == "active",
-                Plan.product_type == "ai",
+                Plan.product_type.in_(("ai", "bundle")),
                 Subscription.expires_at.is_not(None),
                 Subscription.expires_at > now,
             )

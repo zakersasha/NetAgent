@@ -10,8 +10,14 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.ai_service import AiChatService, AiQuotaExceededError
 from bot.billing import BillingClient
-from bot.keyboards import ai_chat_keyboard, ai_plans_keyboard, main_menu
-from bot.messages import ai_chat_intro_text, ai_generating_text, ai_quota_exceeded_text, activation_error_text
+from bot.keyboards import ai_chat_keyboard, main_menu, shop_keyboard
+from bot.messages import (
+    ai_chat_intro_text,
+    ai_generating_text,
+    ai_quota_exceeded_text,
+    activation_error_text,
+    shop_text,
+)
 from bot.settings import BotSettings
 
 
@@ -31,7 +37,7 @@ def create_ai_router(
         remaining = ai_service.remaining_free_messages(message.from_user.id)
         await state.set_state(AiChatStates.active)
         await message.answer(
-            ai_chat_intro_text(remaining, has_sub),
+            ai_chat_intro_text(remaining, has_sub, settings.ai_free_daily_limit),
             reply_markup=ai_chat_keyboard(),
         )
 
@@ -50,7 +56,7 @@ def create_ai_router(
         remaining = ai_service.remaining_free_messages(callback.from_user.id)
         await state.set_state(AiChatStates.active)
         await callback.message.edit_text(
-            ai_chat_intro_text(remaining, has_sub),
+            ai_chat_intro_text(remaining, has_sub, settings.ai_free_daily_limit),
             reply_markup=ai_chat_keyboard(),
         )
         await callback.answer()
@@ -61,22 +67,11 @@ def create_ai_router(
         await callback.message.edit_text("Чат завершён.", reply_markup=main_menu())
         await callback.answer()
 
-    @router.callback_query(lambda query: query.data == "ai:plans")
-    async def show_ai_plans(callback: CallbackQuery) -> None:
-        from bot.messages import plans_text
-
-        plans = billing.plans("ai")
-        await callback.message.edit_text(
-            plans_text(plans, title="⭐ <b>Тарифы AI</b>"),
-            reply_markup=ai_plans_keyboard(plans),
-        )
-        await callback.answer()
-
     @router.message(StateFilter(AiChatStates.active))
     async def chat_message(message: Message, state: FSMContext) -> None:
         if not message.text or message.text.startswith("/"):
             await message.answer(
-                "Напишите текстовое сообщение или /stop для выхода.",
+                "Напишите текст или /stop для выхода.",
                 reply_markup=ai_chat_keyboard(),
             )
             return
@@ -108,7 +103,11 @@ def create_ai_router(
         except AiQuotaExceededError:
             stop_event.set()
             await animation_task
-            await status.edit_text(ai_quota_exceeded_text(), reply_markup=ai_chat_keyboard())
+            plans = billing.plans("shop")
+            await status.edit_text(
+                ai_quota_exceeded_text(),
+                reply_markup=shop_keyboard(plans),
+            )
             return
         except RuntimeError as exc:
             stop_event.set()
