@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ service_name }} — AI и стабильное подключение{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Умный помощник и подписки в одном месте</h1>
+  <p>AI-ассистент для вопросов и идей. Тарифы с подключением — один ключ, лимит по трафику в месяц.</p>
+  {% if not user_id %}
+    <a href="/register" class="btn">Начать бесплатно</a>
+  {% else %}
+    <a href="/cabinet" class="btn">Личный кабинет</a>
+  {% endif %}
+</section>
+
+<section class="plans">
+  {% for plan in plans %}
+  <article class="card">
+    <h3>{{ plan.name }}</h3>
+    <div class="price">{{ plan.price_rub }} ₽ <span style="font-size:0.9rem;color:var(--muted)">/ 30 дн.</span></div>
+    <p class="desc">{{ plan.description }}</p>
+    {% if user_id %}
+      <a href="/cabinet/plans/{{ plan.slug }}" class="btn">Выбрать</a>
+    {% else %}
+      <a href="/register" class="btn">Зарегистрироваться</a>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+
+<section class="card" style="margin-bottom:2rem">
+  <h3>Как это работает</h3>
+  <ol style="color:var(--muted); padding-left:1.2rem">
+    <li>Регистрация по email — 1 минута</li>
+    <li>Выбор тарифа и тестовая оплата</li>
+    <li>Ключ и инструкция в личном кабинете</li>
+    <li>AI-чат — в Telegram-боте (3 сообщения бесплатно в день)</li>
+  </ol>
+</section>
+{% endblock %}

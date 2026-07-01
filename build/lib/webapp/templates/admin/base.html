@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Админ — {{ service_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+  <header>
+    <div class="container inner">
+      <a href="/admin" class="logo">Admin · {{ service_name }}</a>
+      <nav>
+        <form action="/admin/logout" method="post" style="display:inline">
+          <button type="submit" class="btn btn-secondary">Выйти</button>
+        </form>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {% if admin_id %}
+    <div class="admin-nav">
+      <a href="/admin">Дашборд</a>
+      <a href="/admin/users">Пользователи</a>
+      <a href="/admin/payments">Платежи</a>
+      <a href="/admin/plans">Тарифы</a>
+      <a href="/admin/support">Поддержка</a>
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

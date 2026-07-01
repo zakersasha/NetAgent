@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — {{ service_name }}{% endblock %}
+{% block content %}
+<h1>Регистрация</h1>
+<div class="form card">
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label>Email</label>
+    <input type="email" name="email" value="{{ email or '' }}" required autocomplete="email">
+    <label>Пароль (мин. 8 символов)</label>
+    <input type="password" name="password" required minlength="8" autocomplete="new-password">
+    <button type="submit" class="btn" style="width:100%">Создать аккаунт</button>
+  </form>
+  <p style="margin-top:1rem;color:var(--muted)">Уже есть аккаунт? <a href="/login">Вход</a></p>
+</div>
+{% endblock %}

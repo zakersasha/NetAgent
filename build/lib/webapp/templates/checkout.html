@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Оплата {{ plan.name }} — {{ service_name }}{% endblock %}
+{% block content %}
+<h1>Оплата: {{ plan.name }}</h1>
+<div class="card" style="max-width:480px">
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <p>{{ plan.description }}</p>
+  <p class="price">{{ plan.price_rub }} ₽ <span style="font-size:0.9rem;color:var(--muted)">/ 30 дней</span></p>
+  <p style="color:var(--muted);font-size:0.9rem">Тестовая оплата — подписка активируется сразу, без реального списания.</p>
+  <form method="post" action="/cabinet/pay/{{ plan.slug }}">
+    <button type="submit" class="btn">✅ Оплатить (mock)</button>
+  </form>
+  <p style="margin-top:1rem"><a href="/cabinet">← Назад в кабинет</a></p>
+</div>
+{% endblock %}

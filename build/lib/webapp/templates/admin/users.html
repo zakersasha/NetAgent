@@ -1,0 +1,22 @@
+{% extends "admin/base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block content %}
+<h1>Пользователи</h1>
+<div class="card">
+  <table>
+    <thead><tr><th>ID</th><th>Email</th><th>Telegram</th><th>Тариф</th><th>Статус</th><th>Регистрация</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.id }}</td>
+        <td>{{ u.email or '—' }}</td>
+        <td>{% if u.telegram_id %}{{ u.telegram_id }}{% else %}—{% endif %}</td>
+        <td>{{ u.active_plan or '—' }}</td>
+        <td>{{ u.status }}</td>
+        <td>{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

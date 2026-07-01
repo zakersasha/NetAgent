@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Личный кабинет — {{ service_name }}{% endblock %}
+{% block content %}
+<h1>Личный кабинет</h1>
+
+{% if request.query_params.get('paid') %}
+<div class="success">Оплата прошла успешно. Подписка активирована.</div>
+{% endif %}
+
+{% if account.vpn_subscription %}
+<section class="card" style="margin-bottom:1rem">
+  <h2>🌐 Подключение</h2>
+  <p>Тариф: <strong>{{ account.vpn_subscription.plan.name }}</strong></p>
+  <p>До: <strong>{{ account.vpn_subscription.expires_at.strftime('%d.%m.%Y') }}</strong> ({{ account.vpn_subscription.days_left }} дн.)</p>
+  {% if account.vpn_subscription.traffic_limit_gb %}
+  <p>Трафик: <strong>{{ format_traffic(account.vpn_subscription.traffic_used_bytes, account.vpn_subscription.traffic_limit_gb) }}</strong></p>
+  {% endif %}
+  {% if account.vpn_subscription.devices %}
+  <p style="margin-top:1rem"><strong>Ваш ключ</strong></p>
+  <div class="key-box">{{ account.vpn_subscription.devices[0].connection_uri }}</div>
+  <p style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Не делитесь ключом — трафик общий для всех, кто им пользуется.</p>
+  <form method="post" action="/cabinet/regenerate-key" style="margin-top:1rem" onsubmit="return confirm('Старый ключ перестанет работать. Продолжить?')">
+    <button type="submit" class="btn btn-secondary">Выпустить новый ключ</button>
+  </form>
+  {% endif %}
+</section>
+{% else %}
+<section class="card" style="margin-bottom:1rem">
+  <h2>🌐 Подключение</h2>
+  <p style="color:var(--muted)">Нет активной подписки. Выберите тариф на <a href="/">главной</a>.</p>
+</section>
+{% endif %}
+
+{% if account.has_ai_unlimited %}
+<section class="card" style="margin-bottom:1rem">
+  <h2>💬 AI-ассистент</h2>
+  <p>Безлимитный чат — откройте Telegram-бота и нажмите «Чат с ассистентом».</p>
+</section>
+{% else %}
+<section class="card" style="margin-bottom:1rem">
+  <h2>💬 AI-ассистент</h2>
+  <p>Бесплатно в боте: {{ account.ai_free_remaining }} сообщений сегодня.</p>
+  <p style="color:var(--muted)">Тариф Combo или Lite AI — безлимит в боте.</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>Тарифы</h3>
+  <p><a href="/">Посмотреть все тарифы и оплатить</a></p>
+</section>
+{% endblock %}

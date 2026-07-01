@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% block title %}Дашборд{% endblock %}
+{% block content %}
+<h1>Дашборд</h1>
+
+<div class="stats-grid">
+  <div class="card"><div class="stat-value">{{ dashboard.users_total }}</div><div class="stat-label">Пользователей</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.subscriptions_active }}</div><div class="stat-label">Активных подписок</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.revenue_rub|round(0) }} ₽</div><div class="stat-label">Выручка (mock)</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.payments_total }}</div><div class="stat-label">Платежей</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.devices_active }}</div><div class="stat-label">Ключей активно</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.devices_suspended }}</div><div class="stat-label">Ключей заблок.</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.support_open }}</div><div class="stat-label">Тикетов open</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.users_with_telegram }}</div><div class="stat-label">С Telegram</div></div>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <h3>Подписки по типу</h3>
+  <p>VPN: {{ dashboard.subscriptions_vpn }} · AI: {{ dashboard.subscriptions_ai }} · Combo: {{ dashboard.subscriptions_bundle }}</p>
+</div>
+
+<h2>Последние платежи</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>ID</th><th>Email</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr></thead>
+    <tbody>
+      {% for p in recent_payments %}
+      <tr>
+        <td>{{ p.id }}</td>
+        <td>{{ p.user_email or '—' }}</td>
+        <td>{{ p.plan_name }}</td>
+        <td>{{ p.amount|round(0) }} ₽</td>
+        <td><span class="badge">{{ p.status }}</span></td>
+        <td>{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="color:var(--muted)">Платежей пока нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
