@@ -1,0 +1,24 @@
+{% extends "admin/base.html" %}
+{% block title %}Поддержка{% endblock %}
+{% block content %}
+<h1>Обращения в поддержку</h1>
+<div class="card">
+  <table>
+    <thead><tr><th>ID</th><th>Telegram</th><th>Категория</th><th>Статус</th><th>Сообщение</th><th>Дата</th></tr></thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td>{{ t.id }}</td>
+        <td>{{ t.telegram_id }}</td>
+        <td>{{ t.category or '—' }}</td>
+        <td>{{ t.status }}</td>
+        <td style="max-width:320px">{{ t.message[:120] }}{% if t.message|length > 120 %}…{% endif %}</td>
+        <td>{{ t.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="color:var(--muted)">Обращений нет</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

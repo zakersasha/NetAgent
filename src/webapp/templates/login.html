@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Вход — {{ service_name }}{% endblock %}
+{% block content %}
+<h1>Вход</h1>
+<div class="form card">
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label>Email</label>
+    <input type="email" name="email" value="{{ email or '' }}" required autocomplete="email">
+    <label>Пароль</label>
+    <input type="password" name="password" required autocomplete="current-password">
+    <button type="submit" class="btn" style="width:100%">Войти</button>
+  </form>
+  <p style="margin-top:1rem;color:var(--muted)">Нет аккаунта? <a href="/register">Регистрация</a></p>
+</div>
+{% endblock %}
