@@ -11,7 +11,14 @@ from xray_agent.errors import (
     XrayAgentError,
     XrayCommandError,
 )
-from xray_agent.models import AddUserRequest, HealthResponse, RemoveUserRequest, UserOnlineStats, UserResponse
+from xray_agent.models import (
+    AddUserRequest,
+    HealthResponse,
+    RemoveUserRequest,
+    UserOnlineStats,
+    UserResponse,
+    UserTrafficStats,
+)
 from xray_agent.security import verify_agent_access
 from xray_agent.settings import get_settings
 
@@ -70,6 +77,11 @@ async def users_count():
 @app.get("/stats/users_online", response_model=list[UserOnlineStats], dependencies=[agent_auth])
 async def users_online_stats() -> list[UserOnlineStats]:
     return stats_service.get_users_online()
+
+
+@app.get("/stats/user_traffic", response_model=UserTrafficStats, dependencies=[agent_auth])
+async def user_traffic_stats(email: str) -> UserTrafficStats:
+    return stats_service.get_user_traffic(email)
 
 
 @app.post("/add_user", response_model=UserResponse, dependencies=[agent_auth])

@@ -5,19 +5,22 @@ from enum import Enum
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from device_monitor.geo import GeoCountryResolver
-from netagent_db.models import Device
+from netagent_common.traffic import bytes_to_gb
+from netagent_db.models import Device, Plan, Subscription
 from xray_agent.models import OnlineIpEntry, UserOnlineStats
 from xray_client.client import XrayAgentClient, XrayAgentClientError
 
 logger = logging.getLogger(__name__)
+GB = 1024**3
 
 
 class ViolationType(str, Enum):
     MULTIPLE_IPS = "multiple_ips"
     MULTIPLE_COUNTRIES = "multiple_countries"
+    TRAFFIC_EXCEEDED = "traffic_exceeded"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +48,15 @@ def detect_violation(
             detail=f"countries: {', '.join(countries)}; IPs: {', '.join(unique_ips)}",
         )
     return None
+
+
+def apply_traffic_delta(current_xray_bytes: int, snapshot_bytes: int, used_bytes: int) -> tuple[int, int]:
+    """Return (new_used_bytes, new_snapshot_bytes)."""
+    if current_xray_bytes < snapshot_bytes:
+        delta = current_xray_bytes
+    else:
+        delta = current_xray_bytes - snapshot_bytes
+    return used_bytes + max(0, delta), current_xray_bytes
 
 
 def pick_latest_ip(stats: UserOnlineStats) -> tuple[str | None, datetime | None]:
@@ -78,10 +90,22 @@ class DeviceMonitorService:
 
         with self._session_factory() as session:
             devices = session.scalars(
-                select(Device).where(Device.status == "active")
+                select(Device)
+                .where(Device.status == "active")
+                .options(joinedload(Device.subscription).joinedload(Subscription.plan))
             ).all()
 
             for device in devices:
+                subscription = device.subscription
+                plan = subscription.plan if subscription else None
+
+                if plan and plan.traffic_limit_gb:
+                    violation = self._sync_traffic(session, device, subscription, plan)
+                    if violation:
+                        self._suspend_device(session, device, violation.detail)
+                        suspended += 1
+                        continue
+
                 stats = stats_by_email.get(device.xray_email)
                 if not stats or not stats.ips:
                     continue
@@ -107,6 +131,34 @@ class DeviceMonitorService:
 
             session.commit()
         return suspended
+
+    def _sync_traffic(
+        self,
+        session: Session,
+        device: Device,
+        subscription: Subscription,
+        plan: Plan,
+    ) -> Violation | None:
+        try:
+            current = self._xray_agent.user_traffic_bytes(device.xray_email)
+        except XrayAgentClientError as exc:
+            logger.warning("Traffic stats unavailable for %s: %s", device.xray_email, exc)
+            return None
+
+        used = int(subscription.traffic_used_bytes or 0)
+        snapshot = int(subscription.traffic_xray_snapshot_bytes or 0)
+        new_used, new_snapshot = apply_traffic_delta(current, snapshot, used)
+        subscription.traffic_used_bytes = new_used
+        subscription.traffic_xray_snapshot_bytes = new_snapshot
+
+        limit_bytes = int(plan.traffic_limit_gb) * GB
+        if new_used >= limit_bytes:
+            detail = (
+                f"traffic: {bytes_to_gb(new_used)} GB / {plan.traffic_limit_gb} GB"
+            )
+            logger.warning("Traffic limit for %s: %s", device.xray_email, detail)
+            return Violation(type=ViolationType.TRAFFIC_EXCEEDED, detail=detail)
+        return None
 
     def _fetch_online_stats(self) -> list[UserOnlineStats]:
         raw = self._xray_agent.users_online_stats()

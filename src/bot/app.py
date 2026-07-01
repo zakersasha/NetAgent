@@ -13,6 +13,7 @@ from bot.commands import setup_bot_commands
 from bot.handlers import create_router
 from bot.support_handlers import create_support_router
 from bot.support_service import SupportService
+from bot.xray_provisioner import XrayProvisioner
 from bot.settings import get_bot_settings
 from netagent_common.openai_client import OpenAIChatClient
 from netagent_common.proxy_urls import parse_proxy_urls, ProxyRotator
@@ -89,6 +90,8 @@ async def main() -> None:
         )
         logging.info("Xray Agent: %s", agent_url)
 
+    xray_provisioner = XrayProvisioner(client=xray_agent, required=bool(agent_url))
+
     session_factory = create_session_factory(database_url)
     billing = BillingClient(
         session_factory=session_factory,
@@ -99,7 +102,7 @@ async def main() -> None:
         reality_sni=settings.reality_sni,
         reality_short_id=settings.reality_short_id,
         vless_flow=settings.vless_flow,
-        xray_agent=xray_agent,
+        xray_provisioner=xray_provisioner,
         ai_free_daily_limit=settings.ai_free_daily_limit,
     )
     openai_client = OpenAIChatClient(

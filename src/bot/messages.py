@@ -1,8 +1,8 @@
 from html import escape
 
 from bot.billing import AccountStatusView, DeviceView, SubscriptionView
-from bot.device_presets import DEVICE_PRESETS, DevicePreset
 from bot.plans import Plan
+from netagent_common.traffic import format_traffic
 
 
 def welcome_text(service_name: str) -> str:
@@ -22,24 +22,27 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
 
     if status.vpn_subscription:
         sub = status.vpn_subscription
+        traffic_line = ""
+        if sub.traffic_limit_gb:
+            traffic_line = f"\nТрафик: <b>{format_traffic(sub.traffic_used_bytes, sub.traffic_limit_gb)}</b>"
         rows.append(
             f"\n🌐 <b>Подключение</b> · активно\n"
             f"Тариф: {escape(sub.plan.name)}\n"
             f"До: <b>{sub.expires_at.strftime('%d.%m.%Y')}</b> "
-            f"({sub.days_left} дн.)\n"
-            f"Устройств: {len(sub.devices)} / {sub.plan.device_limit}"
+            f"({sub.days_left} дн.)"
+            f"{traffic_line}"
         )
         rows.append("\n\n" + instructions_short_text())
         if sub.devices:
-            for device in sub.devices:
-                rows.append(
-                    f"\n\n{device.emoji} <b>{escape(device.display_name)}</b>\n"
-                    f"<code>{escape(device.connection_uri)}</code>"
-                )
+            device = sub.devices[0]
+            rows.append(
+                f"\n\n🔑 <b>Ваш ключ</b>\n"
+                f"<code>{escape(device.connection_uri)}</code>"
+            )
         else:
             rows.append(
-                "\n\n🔑 Ключ появится после добавления устройства — "
-                "кнопка «Добавить устройство» ниже."
+                "\n\n🔑 Ключ создаётся… Откройте «Моя подписка» через пару секунд "
+                "или нажмите «Получить ключ»."
             )
     else:
         rows.append("\n🌐 <b>Подключение</b> · не активно")
@@ -117,10 +120,11 @@ def shop_text(plans: tuple[Plan, ...]) -> str:
 
 def plan_details_text(plan: Plan) -> str:
     if plan.product_type == "bundle":
+        traffic = f"📊 Трафик: <b>{plan.traffic_limit_gb} ГБ/мес</b>\n" if plan.traffic_limit_gb else ""
         body = (
             f"🔥 <b>{escape(plan.name)}</b>\n\n"
             f"{escape(plan.description)}\n\n"
-            f"🌐 Устройств: <b>до {plan.device_limit}</b>\n"
+            f"{traffic}"
             "💬 AI: <b>без лимита</b>\n"
             f"Срок: <b>{plan.duration_days} дней</b>\n"
             f"Цена: <b>{plan.price_rub} ₽</b>"
@@ -136,11 +140,11 @@ def plan_details_text(plan: Plan) -> str:
         body = (
             f"🌐 <b>{escape(plan.name)}</b>\n\n"
             f"{escape(plan.description)}\n\n"
-            f"Устройств: <b>до {plan.device_limit}</b>\n"
+            f"📊 Трафик: <b>{plan.traffic_limit_gb} ГБ/мес</b>\n"
             f"Срок: <b>{plan.duration_days} дней</b>\n"
             f"Цена: <b>{plan.price_rub} ₽</b>"
         )
-    return body + "\n\nНажмите «Оплатить» — тариф активируется сразу."
+    return body + "\n\nНажмите «Оплатить» — ключ появится в «Моя подписка»."
 
 
 def payment_success_text(subscription: SubscriptionView) -> str:
@@ -150,7 +154,7 @@ def payment_success_text(subscription: SubscriptionView) -> str:
             "✅ <b>Оплачено!</b>\n\n"
             f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
             f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-            "📋 «Моя подписка» — ключ и инструкция.\n"
+            "📋 «Моя подписка» — ваш ключ и лимит трафика.\n"
             "💬 «Чат с ассистентом» — AI без лимита."
         )
     if subscription.plan.product_type == "ai":
@@ -164,26 +168,28 @@ def payment_success_text(subscription: SubscriptionView) -> str:
         "✅ <b>Оплачено!</b>\n\n"
         f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
         f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-        "📋 «Моя подписка» — добавьте устройство и скопируйте ключ."
+        "📋 «Моя подписка» — ваш ключ готов."
     )
 
 
 def devices_text(subscription: SubscriptionView) -> str:
     expires_at = subscription.expires_at.strftime("%d.%m.%Y")
+    traffic = ""
+    if subscription.traffic_limit_gb:
+        traffic = f"Трафик: <b>{format_traffic(subscription.traffic_used_bytes, subscription.traffic_limit_gb)}</b>\n"
     rows = [
-        "🔑 <b>Мои ключи</b>\n",
+        "🔑 <b>Мой ключ</b>\n",
         f"Тариф: <b>{escape(subscription.plan.name)}</b>",
-        f"Устройств: <b>{len(subscription.devices)}</b> "
-        f"из <b>{subscription.plan.device_limit}</b>",
-        f"До: <b>{expires_at}</b> ({subscription.days_left} дн.)",
+        traffic + f"До: <b>{expires_at}</b> ({subscription.days_left} дн.)",
     ]
     if not subscription.devices:
-        rows.append("\n\nУстройств нет. Нажмите «Добавить устройство» 👇")
+        rows.append("\n\nКлюч ещё не создан. Нажмите «Получить ключ» 👇")
     else:
-        rows.append("\n\n<b>Список:</b>")
-        for device in subscription.devices:
-            rows.append(f"\n{device.emoji} {escape(device.display_name)}")
-        rows.append("\n\nНажмите устройство — скопируете ключ.")
+        device = subscription.devices[0]
+        rows.append(
+            f"\n\n<code>{escape(device.connection_uri)}</code>\n\n"
+            "Не делитесь ключом — трафик общий на всех, кто им пользуется."
+        )
     return "\n".join(rows)
 
 
@@ -196,12 +202,11 @@ def device_detail_text(device: DeviceView) -> str:
     )
 
 
-def add_device_text(subscription: SubscriptionView) -> str:
+def regenerate_key_text() -> str:
     return (
-        "➕ <b>Добавить устройство</b>\n\n"
-        f"Можно ещё: <b>"
-        f"{subscription.plan.device_limit - len(subscription.devices)}</b>\n\n"
-        "Выберите тип — для каждого будет свой ключ."
+        "🔄 <b>Новый ключ</b>\n\n"
+        "Старый ключ перестанет работать. "
+        "Используйте, если ключ могли скопировать."
     )
 
 
@@ -230,8 +235,8 @@ def activation_error_text(error: str) -> str:
 
 def device_limit_exceeded_text() -> str:
     return (
-        "⚠️ <b>Лимит устройств</b>\n\n"
-        "Удалите одно устройство, чтобы добавить новое."
+        "⚠️ <b>Лимит трафика</b>\n\n"
+        "Месячный лимит исчерпан. Продлите тариф или выберите план с большим объёмом."
     )
 
 
@@ -323,12 +328,3 @@ def ai_quota_exceeded_text() -> str:
 def ai_generating_text(frame: int) -> str:
     dots = "." * (frame % 3 + 1)
     return f"✨ <b>Думаю</b>{dots}"
-
-
-def available_presets(subscription: SubscriptionView) -> tuple[DevicePreset, ...]:
-    used = {device.slug for device in subscription.devices}
-    return tuple(
-        preset
-        for preset in DEVICE_PRESETS
-        if preset.slug not in used
-    )

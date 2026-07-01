@@ -39,6 +39,12 @@ class XrayAgentClient:
             return data
         return []
 
+    def user_traffic_bytes(self, email: str) -> int:
+        data = self._request("GET", "/stats/user_traffic", params={"email": email})
+        uplink = int(data.get("uplink_bytes", 0))
+        downlink = int(data.get("downlink_bytes", 0))
+        return uplink + downlink
+
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/health")
 

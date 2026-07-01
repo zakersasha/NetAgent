@@ -9,13 +9,10 @@ class DevicePreset:
     email_suffix: str
 
 
-DEVICE_PRESETS: tuple[DevicePreset, ...] = (
-    DevicePreset("iphone", "📱", "iPhone", "phone"),
-    DevicePreset("android", "📱", "Android", "android"),
-    DevicePreset("ipad", "📱", "iPad", "ipad"),
-    DevicePreset("macbook", "💻", "MacBook", "macbook"),
-    DevicePreset("windows", "🖥", "Windows PC", "windows"),
-)
+# Один ключ на подписку — без «слотов» по типу устройства.
+VPN_KEY_PRESET = DevicePreset("connection", "🔑", "Подключение", "vpn")
+
+DEVICE_PRESETS: tuple[DevicePreset, ...] = (VPN_KEY_PRESET,)
 
 
 def get_device_preset(slug: str) -> DevicePreset:

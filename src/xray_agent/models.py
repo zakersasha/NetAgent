@@ -11,6 +11,16 @@ class UserOnlineStats(BaseModel):
     ips: list[OnlineIpEntry] = Field(default_factory=list)
 
 
+class UserTrafficStats(BaseModel):
+    email: str
+    uplink_bytes: int = 0
+    downlink_bytes: int = 0
+
+    @property
+    def total_bytes(self) -> int:
+        return self.uplink_bytes + self.downlink_bytes
+
+
 class AddUserRequest(BaseModel):
     uuid: str = Field(..., min_length=1)
     email: str = Field(..., min_length=1)

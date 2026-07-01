@@ -1,5 +1,7 @@
 # Контроль устройств через Xray Stats API
 
+> Полная инструкция: варианты anti-sharing, relay, деплой agent и поток бота — **[key-enforcement-guide.md](key-enforcement-guide.md)**.
+
 ## Модель
 
 1. Пользователь добавляет устройство в боте → генерируются:

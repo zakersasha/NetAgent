@@ -2,11 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from bot.billing import (
-    BillingClient,
-    DeviceAlreadyExistsError,
-    DeviceLimitExceededError,
-)
+from bot.billing import BillingClient
 from netagent_db.base import Base
 from netagent_db.seed import seed_plans
 
@@ -28,63 +24,45 @@ def billing_client() -> BillingClient:
     )
 
 
-def test_mock_payment_activates_plan_without_devices(billing_client: BillingClient) -> None:
+def test_mock_payment_creates_subscription_and_key(billing_client: BillingClient) -> None:
     subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect_plus")
 
     assert subscription.plan.slug == "connect_plus"
-    assert subscription.plan.device_limit == 2
-    assert subscription.devices == ()
+    assert subscription.plan.traffic_limit_gb == 100
+    assert len(subscription.devices) == 1
+    assert subscription.devices[0].xray_email == "123_vpn"
 
 
-def test_add_device_creates_unique_uuid_and_email(billing_client: BillingClient) -> None:
-    billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect_plus")
-
-    phone = billing_client.add_device(telegram_id=123, preset_slug="iphone")
-    macbook = billing_client.add_device(telegram_id=123, preset_slug="macbook")
-
-    assert phone.xray_email == "123_phone"
-    assert macbook.xray_email == "123_macbook"
-    assert phone.xray_uuid != macbook.xray_uuid
-    assert "pbk=" in phone.connection_uri
-    assert "45.93.137.80:443" in phone.connection_uri
-
-
-def test_device_limit_is_enforced(billing_client: BillingClient) -> None:
+def test_ensure_vpn_key_creates_single_key(billing_client: BillingClient) -> None:
     billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
-    billing_client.add_device(telegram_id=123, preset_slug="iphone")
 
-    with pytest.raises(DeviceLimitExceededError, match="Лимит устройств"):
-        billing_client.add_device(telegram_id=123, preset_slug="android")
+    key = billing_client.ensure_vpn_key(telegram_id=123)
+    again = billing_client.ensure_vpn_key(telegram_id=123)
 
-
-def test_duplicate_device_preset_is_rejected(billing_client: BillingClient) -> None:
-    billing_client.activate_mock_payment(telegram_id=123, plan_slug="combo_max")
-    billing_client.add_device(telegram_id=123, preset_slug="iphone")
-
-    with pytest.raises(DeviceAlreadyExistsError):
-        billing_client.add_device(telegram_id=123, preset_slug="iphone")
+    assert key.xray_email == "123_vpn"
+    assert key.xray_uuid == again.xray_uuid
+    assert "pbk=" in key.connection_uri
 
 
-def test_repeated_payment_updates_plan_and_keeps_devices(billing_client: BillingClient) -> None:
+def test_regenerate_vpn_key_changes_uuid(billing_client: BillingClient) -> None:
     billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
-    device = billing_client.add_device(telegram_id=123, preset_slug="iphone")
+    first = billing_client.ensure_vpn_key(telegram_id=123)
+    second = billing_client.regenerate_vpn_key(telegram_id=123)
+
+    assert first.xray_uuid != second.xray_uuid
+    assert second.xray_email == "123_vpn"
+
+
+def test_repeated_payment_updates_plan_and_keeps_key(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
+    device = billing_client.ensure_vpn_key(telegram_id=123)
 
     subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="combo_max")
 
     assert subscription.plan.slug == "combo_max"
     assert len(subscription.devices) == 1
     assert subscription.devices[0].xray_uuid == device.xray_uuid
-
-
-def test_remove_device_deletes_from_subscription(billing_client: BillingClient) -> None:
-    billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect_plus")
-    device = billing_client.add_device(telegram_id=123, preset_slug="iphone")
-
-    billing_client.remove_device(telegram_id=123, device_id=device.id)
-    subscription = billing_client.get_subscription(telegram_id=123)
-
-    assert subscription is not None
-    assert subscription.devices == ()
+    assert subscription.traffic_limit_gb == 200
 
 
 def test_unknown_plan_is_rejected(billing_client: BillingClient) -> None:

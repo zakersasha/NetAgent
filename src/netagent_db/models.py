@@ -39,6 +39,7 @@ class Plan(Base):
     duration_days: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
     price_rub: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     device_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    traffic_limit_gb: Mapped[int | None] = mapped_column(Integer, nullable=True)
     product_type: Mapped[str] = mapped_column(String(20), default="vpn", server_default="vpn")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -54,6 +55,10 @@ class Subscription(Base):
     device_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    traffic_used_bytes: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    traffic_xray_snapshot_bytes: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

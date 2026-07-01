@@ -1,5 +1,5 @@
 from device_monitor.geo import GeoCountryResolver
-from device_monitor.service import detect_violation, ViolationType
+from device_monitor.service import apply_traffic_delta, detect_violation, ViolationType
 
 
 class FakeGeo:
@@ -28,3 +28,15 @@ def test_single_ip_same_country_is_ok() -> None:
     geo = FakeGeo({"1.0.0.1": "RU"})
     violation = detect_violation(["1.0.0.1"], geo, max_online_ips=1)
     assert violation is None
+
+
+def test_traffic_delta_handles_xray_restart() -> None:
+    used, snapshot = apply_traffic_delta(current_xray_bytes=100, snapshot_bytes=500, used_bytes=1000)
+    assert used == 1100
+    assert snapshot == 100
+
+
+def test_traffic_delta_accumulates() -> None:
+    used, snapshot = apply_traffic_delta(current_xray_bytes=600, snapshot_bytes=500, used_bytes=1000)
+    assert used == 1100
+    assert snapshot == 600

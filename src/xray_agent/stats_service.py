@@ -3,7 +3,7 @@ import subprocess
 from typing import Any
 
 from xray_agent.errors import ConfigError, XrayCommandError
-from xray_agent.models import OnlineIpEntry, UserOnlineStats
+from xray_agent.models import OnlineIpEntry, UserOnlineStats, UserTrafficStats
 from xray_agent.settings import AgentSettings
 
 
@@ -42,6 +42,27 @@ class XrayStatsService:
                     ips.append(OnlineIpEntry(ip=ip, last_seen=int(last_seen or 0)))
             result.append(UserOnlineStats(email=email, ips=ips))
         return result
+
+    def get_user_traffic(self, email: str) -> UserTrafficStats:
+        uplink = self._query_counter(f"user>>>{email}>>>traffic>>>uplink")
+        downlink = self._query_counter(f"user>>>{email}>>>traffic>>>downlink")
+        return UserTrafficStats(email=email, uplink_bytes=uplink, downlink_bytes=downlink)
+
+    def _query_counter(self, pattern: str) -> int:
+        command = (
+            f"{self.settings.xray_bin} api statsquery "
+            f"-server={self.settings.xray_api_server} -pattern {pattern!r}"
+        )
+        raw = self._run_command(command)
+        payload = json.loads(raw)
+        stat = payload.get("stat")
+        if not isinstance(stat, dict):
+            return 0
+        value = stat.get("value", 0)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
 
     def _run_command(self, command: str) -> str:
         completed = subprocess.run(
