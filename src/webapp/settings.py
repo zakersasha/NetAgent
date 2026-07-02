@@ -27,7 +27,8 @@ class WebSettings(BaseSettings):
     xray_agent_timeout_seconds: float = Field(60.0, alias="XRAY_AGENT_TIMEOUT_SECONDS")
     ai_free_daily_limit: int = Field(3, alias="AI_FREE_DAILY_LIMIT")
     telegram_bot_username: str = Field("", alias="TELEGRAM_BOT_USERNAME")
-    support_contact: str = Field("@support", alias="BOT_SUPPORT_CONTACT")
+    telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
+    support_notify_telegram_id: int = Field(0, alias="SUPPORT_NOTIFY_TELEGRAM_ID")
     company_email: str = Field("support@netagent.ru", alias="COMPANY_EMAIL")
 
 

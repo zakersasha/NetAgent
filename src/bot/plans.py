@@ -10,47 +10,52 @@ class Plan:
     traffic_limit_gb: int | None
     duration_days: int = 30
     product_type: str = "vpn"
-    device_limit: int = 1  # legacy DB column, not used in UI
+    device_limit: int = 1
 
 
 PLANS: tuple[Plan, ...] = (
     Plan(
         slug="combo_max",
-        name="Combo Max",
-        description="200 ГБ + AI без лимита — для семьи и активного использования",
+        name="Семья",
+        description="до 10 устройств · семья и расширенная команда + AI",
         price_rub=449,
         traffic_limit_gb=200,
         product_type="bundle",
+        device_limit=10,
     ),
     Plan(
         slug="combo",
-        name="Combo",
-        description="80 ГБ + AI без лимита — лучший выбор",
+        name="Бизнес",
+        description="до 5 устройств · команда + AI-помощник",
         price_rub=299,
         traffic_limit_gb=80,
         product_type="bundle",
+        device_limit=5,
     ),
     Plan(
         slug="connect_plus",
-        name="Connect+",
-        description="Стабильное подключение · 100 ГБ в месяц",
+        name="Команда",
+        description="до 3 устройств · удалённая работа команды",
         price_rub=279,
         traffic_limit_gb=100,
+        device_limit=3,
     ),
     Plan(
         slug="connect",
-        name="Connect",
-        description="Стабильное подключение · 50 ГБ в месяц",
+        name="Личный",
+        description="1 устройство · личная подписка · защищённый канал",
         price_rub=179,
         traffic_limit_gb=50,
+        device_limit=1,
     ),
     Plan(
         slug="lite_ai",
-        name="Lite AI",
-        description="AI-помощник без лимита сообщений в Telegram",
+        name="AI Помощник",
+        description="AI-помощник в Telegram без лимита",
         price_rub=99,
         traffic_limit_gb=None,
         product_type="ai",
+        device_limit=0,
     ),
 )
 

@@ -16,6 +16,20 @@ from netagent_db.models import (
 
 
 @dataclass(slots=True)
+class SupportTicketRow:
+    id: int
+    user_id: int
+    user_email: str | None
+    telegram_id: int | None
+    category: str | None
+    message: str
+    admin_reply: str | None
+    status: str
+    created_at: datetime
+    replied_at: datetime | None
+
+
+@dataclass(slots=True)
 class DashboardStats:
     users_total: int
     users_with_telegram: int
@@ -155,11 +169,52 @@ class AdminStatsService:
                 )
             return rows
 
-    def list_support_tickets(self, limit: int = 50):
+    def list_support_tickets(self, limit: int = 50) -> list[SupportTicketRow]:
         with self._session_factory() as session:
-            return session.scalars(
-                select(SupportTicket).order_by(SupportTicket.created_at.desc()).limit(limit)
+            rows = session.execute(
+                select(SupportTicket, User.email)
+                .join(User, SupportTicket.user_id == User.id)
+                .order_by(SupportTicket.created_at.desc())
+                .limit(limit)
             ).all()
+            return [
+                SupportTicketRow(
+                    id=t.id,
+                    user_id=t.user_id,
+                    user_email=email,
+                    telegram_id=t.telegram_id,
+                    category=t.category,
+                    message=t.message,
+                    admin_reply=t.admin_reply,
+                    status=t.status,
+                    created_at=t.created_at,
+                    replied_at=t.replied_at,
+                )
+                for t, email in rows
+            ]
+
+    def get_support_ticket_row(self, ticket_id: int) -> SupportTicketRow | None:
+        with self._session_factory() as session:
+            row = session.execute(
+                select(SupportTicket, User.email)
+                .join(User, SupportTicket.user_id == User.id)
+                .where(SupportTicket.id == ticket_id)
+            ).first()
+            if not row:
+                return None
+            t, email = row
+            return SupportTicketRow(
+                id=t.id,
+                user_id=t.user_id,
+                user_email=email,
+                telegram_id=t.telegram_id,
+                category=t.category,
+                message=t.message,
+                admin_reply=t.admin_reply,
+                status=t.status,
+                created_at=t.created_at,
+                replied_at=t.replied_at,
+            )
 
     def list_plans(self) -> list[Plan]:
         with self._session_factory() as session:

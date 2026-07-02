@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
+from bot.support_service import SupportService
 from webapp.stats import AdminStatsService
+from webapp.telegram_notify import send_telegram_message
 from webapp.templating import ctx, templates
 
 router = APIRouter(prefix="/admin")
@@ -75,3 +77,55 @@ async def admin_support(request: Request):
         "admin/support.html",
         ctx(request, tickets=tickets),
     )
+
+
+@router.get("/support/{ticket_id}")
+async def admin_support_detail(request: Request, ticket_id: int):
+    if not _require_admin(request):
+        return RedirectResponse("/admin/login", status_code=303)
+
+    stats: AdminStatsService = request.app.state.stats
+    ticket = stats.get_support_ticket_row(ticket_id)
+    if not ticket:
+        return RedirectResponse("/admin/support", status_code=303)
+    return templates.TemplateResponse(
+        "admin/support_detail.html",
+        ctx(request, ticket=ticket),
+    )
+
+
+@router.post("/support/{ticket_id}/reply")
+async def admin_support_reply(
+    request: Request,
+    ticket_id: int,
+    reply: str = Form(...),
+):
+    if not _require_admin(request):
+        return RedirectResponse("/admin/login", status_code=303)
+
+    support: SupportService = request.app.state.support
+    settings = request.app.state.settings
+    try:
+        ticket = support.reply_to_ticket(ticket_id, reply)
+    except ValueError as exc:
+        stats: AdminStatsService = request.app.state.stats
+        row = stats.get_support_ticket_row(ticket_id)
+        return templates.TemplateResponse(
+            "admin/support_detail.html",
+            ctx(request, ticket=row, error=str(exc)),
+            status_code=400,
+        )
+
+    token = settings.telegram_bot_token.strip()
+    if ticket.telegram_id and token:
+        user_text = (
+            f"💬 <b>Ответ поддержки</b> (#{ticket.id})\n\n"
+            f"{reply.strip()}\n\n"
+            "Если вопрос остался — напишите снова в «Поддержку»."
+        )
+        try:
+            await send_telegram_message(token, ticket.telegram_id, user_text)
+        except Exception:
+            pass
+
+    return RedirectResponse(f"/admin/support/{ticket_id}?sent=1", status_code=303)

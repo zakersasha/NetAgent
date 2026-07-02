@@ -7,37 +7,23 @@
   <div class="card form-wide" style="margin:0 auto">
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
-    <div style="margin-bottom:1rem">
-      <span class="badge {% if plan.slug == 'combo' %}active{% endif %}">{% if plan.slug == 'combo' %}⭐ Рекомендуем{% else %}{{ plan.name }}{% endif %}</span>
-    </div>
-
-    <h2 style="margin:0 0 0.5rem">{{ plan.name }}</h2>
+    {% set m = marketing_for(plan.slug) %}
+    <h2 style="margin:0 0 0.35rem">{{ plan.name }}</h2>
+    {% if m %}<p style="color:var(--muted);margin:0 0 1rem">{{ m.devices }} · {{ m.audience }}</p>{% endif %}
     <p style="color:var(--muted);margin:0 0 1rem">{{ plan.description }}</p>
 
     <ul class="plan-features" style="margin-bottom:1.5rem">
-      {% if plan.product_type == 'bundle' %}
-        <li>{{ plan.traffic_limit_gb }} ГБ трафика в месяц</li>
-        <li>AI без лимита в Telegram</li>
-      {% elif plan.product_type == 'vpn' %}
-        <li>{{ plan.traffic_limit_gb }} ГБ трафика в месяц</li>
-      {% else %}
-        <li>AI без лимита в Telegram</li>
-      {% endif %}
-      <li>Срок: 30 дней</li>
-      <li>Моментальная активация</li>
+      {% for line in plan_feature_lines(plan.slug, plan.product_type) %}
+      <li>{{ line }}</li>
+      {% endfor %}
     </ul>
 
     <div class="price" style="font-size:2rem;font-weight:700;margin-bottom:0.5rem">{{ plan.price_rub }} ₽</div>
-    <p style="color:var(--muted);font-size:0.88rem;margin:0 0 1.5rem">Подписка активируется сразу после оплаты. Ключ — в личном кабинете.</p>
+    <p style="color:var(--muted);font-size:0.88rem;margin:0 0 1.5rem">Подписка активируется сразу. Профиль доступа — в личном кабинете.</p>
 
     <form method="post" action="/cabinet/pay/{{ plan.slug }}">
       <button type="submit" class="btn btn-block btn-lg">Оплатить {{ plan.price_rub }} ₽</button>
     </form>
-
-    <div class="guarantee-grid" style="margin-top:1.5rem;grid-template-columns:1fr 1fr">
-      <div style="font-size:0.82rem;color:var(--muted)">🔒 Безопасная оплата</div>
-      <div style="font-size:0.82rem;color:var(--muted)">⚡ Активация за секунды</div>
-    </div>
 
     <p style="margin-top:1.25rem"><a href="/cabinet" style="color:var(--muted)">← Назад в кабинет</a></p>
   </div>

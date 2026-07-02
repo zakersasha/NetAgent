@@ -10,7 +10,7 @@ class DevicePreset:
 
 
 # Один ключ на подписку — без «слотов» по типу устройства.
-VPN_KEY_PRESET = DevicePreset("connection", "🔑", "Подключение", "vpn")
+VPN_KEY_PRESET = DevicePreset("connection", "🔒", "Защищённый канал", "vpn")
 
 DEVICE_PRESETS: tuple[DevicePreset, ...] = (VPN_KEY_PRESET,)
 

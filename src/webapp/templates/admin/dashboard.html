@@ -6,17 +6,17 @@
 <div class="stats-grid">
   <div class="card"><div class="stat-value">{{ dashboard.users_total }}</div><div class="stat-label">Пользователей</div></div>
   <div class="card"><div class="stat-value">{{ dashboard.subscriptions_active }}</div><div class="stat-label">Активных подписок</div></div>
-  <div class="card"><div class="stat-value">{{ dashboard.revenue_rub|round(0) }} ₽</div><div class="stat-label">Выручка (mock)</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.revenue_rub|round(0) }} ₽</div><div class="stat-label">Выручка</div></div>
   <div class="card"><div class="stat-value">{{ dashboard.payments_total }}</div><div class="stat-label">Платежей</div></div>
-  <div class="card"><div class="stat-value">{{ dashboard.devices_active }}</div><div class="stat-label">Ключей активно</div></div>
-  <div class="card"><div class="stat-value">{{ dashboard.devices_suspended }}</div><div class="stat-label">Ключей заблок.</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.devices_active }}</div><div class="stat-label">Профилей активно</div></div>
+  <div class="card"><div class="stat-value">{{ dashboard.devices_suspended }}</div><div class="stat-label">Профилей заблок.</div></div>
   <div class="card"><div class="stat-value">{{ dashboard.support_open }}</div><div class="stat-label">Тикетов open</div></div>
   <div class="card"><div class="stat-value">{{ dashboard.users_with_telegram }}</div><div class="stat-label">С Telegram</div></div>
 </div>
 
 <div class="card" style="margin-bottom:1rem">
   <h3>Подписки по типу</h3>
-  <p>VPN: {{ dashboard.subscriptions_vpn }} · AI: {{ dashboard.subscriptions_ai }} · Combo: {{ dashboard.subscriptions_bundle }}</p>
+  <p>Канал: {{ dashboard.subscriptions_vpn }} · AI: {{ dashboard.subscriptions_ai }} · Пакеты: {{ dashboard.subscriptions_bundle }}</p>
 </div>
 
 <h2>Последние платежи</h2>

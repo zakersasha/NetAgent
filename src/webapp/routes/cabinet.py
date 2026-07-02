@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from bot.billing import BillingClient, BillingError
-from netagent_common.traffic import format_traffic
+from bot.messages import support_notify_text
+from bot.support_service import SupportService
+from webapp.telegram_notify import send_telegram_message
 from webapp.templating import ctx, templates
 
 router = APIRouter(prefix="/cabinet")
@@ -10,6 +12,20 @@ router = APIRouter(prefix="/cabinet")
 
 def _require_user(request: Request) -> int | None:
     return request.session.get("user_id")
+
+
+async def _notify_admin(request: Request, ticket_id: int, telegram_id: int | None, category: str | None, message: str, source: str) -> None:
+    settings = request.app.state.settings
+    notify_id = settings.support_notify_telegram_id
+    token = settings.telegram_bot_token.strip()
+    if not notify_id or not token:
+        return
+    text = support_notify_text(ticket_id, telegram_id or 0, category, message)
+    text += f"\n\n📨 Источник: {source}"
+    try:
+        await send_telegram_message(token, notify_id, text)
+    except Exception:
+        pass
 
 
 @router.get("")
@@ -27,10 +43,49 @@ async def cabinet_index(request: Request):
         ctx(
             request,
             account=status,
-            format_traffic=format_traffic,
             featured_plan=featured,
         ),
     )
+
+
+@router.get("/support")
+async def support_form(request: Request):
+    user_id = _require_user(request)
+    if not user_id:
+        return RedirectResponse("/login?next=/cabinet/support", status_code=303)
+
+    support: SupportService = request.app.state.support
+    tickets = support.list_tickets_for_user(user_id)
+    return templates.TemplateResponse(
+        "support.html",
+        ctx(request, tickets=tickets),
+    )
+
+
+@router.post("/support")
+async def support_submit(
+    request: Request,
+    message: str = Form(...),
+    category: str = Form(""),
+):
+    user_id = _require_user(request)
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
+    support: SupportService = request.app.state.support
+    cat = category.strip() or None
+    try:
+        ticket = support.create_ticket_for_user_id(user_id, message, cat)
+    except ValueError as exc:
+        tickets = support.list_tickets_for_user(user_id)
+        return templates.TemplateResponse(
+            "support.html",
+            ctx(request, tickets=tickets, error=str(exc)),
+            status_code=400,
+        )
+
+    await _notify_admin(request, ticket.id, ticket.telegram_id, cat, message.strip(), "сайт")
+    return RedirectResponse("/cabinet/support?sent=1", status_code=303)
 
 
 @router.get("/plans/{plan_slug}")

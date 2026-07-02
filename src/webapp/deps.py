@@ -3,6 +3,7 @@ from pathlib import Path
 from bot.billing import BillingClient
 from bot.xray_provisioner import XrayProvisioner
 from netagent_db.session import create_session_factory
+from bot.support_service import SupportService
 from webapp.settings import WebSettings
 from webapp.stats import AdminStatsService
 from xray_client.client import XrayAgentClient
@@ -37,6 +38,11 @@ def build_billing(settings: WebSettings) -> BillingClient:
 def build_stats(settings: WebSettings) -> AdminStatsService:
     session_factory = create_session_factory(settings.database_url)
     return AdminStatsService(session_factory)
+
+
+def build_support(settings: WebSettings) -> SupportService:
+    session_factory = create_session_factory(settings.database_url)
+    return SupportService(session_factory=session_factory)
 
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"

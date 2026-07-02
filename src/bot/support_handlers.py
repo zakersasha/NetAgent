@@ -58,14 +58,18 @@ def create_support_router(settings: BotSettings, support_service: SupportService
 
     @router.callback_query(
         StateFilter(SupportStates.waiting),
-        lambda query: query.data in {"support:vpn", "support:ai"},
+        lambda query: query.data in {"support:access", "support:vpn", "support:ai"},
     )
     async def support_category(callback: CallbackQuery, state: FSMContext) -> None:
-        category = "vpn" if callback.data == "support:vpn" else "ai"
+        if callback.data == "support:ai":
+            category = "ai"
+            label = "AI-помощник"
+        else:
+            category = "access"
+            label = "защищённый канал"
         await state.update_data(support_category=category)
-        label = "подключение" if category == "vpn" else "AI-чат"
         await callback.message.edit_text(
-            f"🆘 <b>Поддержка</b> · {label}\n\nОпишите проблему одним сообщением 👇",
+            f"🆘 <b>Поддержка</b> · {label}\n\nОпишите вопрос одним сообщением 👇",
             reply_markup=support_category_keyboard(),
         )
         await callback.answer()

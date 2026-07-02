@@ -132,13 +132,15 @@ class SupportTicket(Base):
 
     id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
-    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     category: Mapped[str | None] = mapped_column(String(20))
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    admin_reply: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AdminUser(Base):

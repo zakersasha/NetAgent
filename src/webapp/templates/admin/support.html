@@ -4,19 +4,32 @@
 <h1>Обращения в поддержку</h1>
 <div class="card">
   <table>
-    <thead><tr><th>ID</th><th>Telegram</th><th>Категория</th><th>Статус</th><th>Сообщение</th><th>Дата</th></tr></thead>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Пользователь</th>
+        <th>Категория</th>
+        <th>Статус</th>
+        <th>Сообщение</th>
+        <th>Дата</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
       {% for t in tickets %}
       <tr>
         <td>{{ t.id }}</td>
-        <td>{{ t.telegram_id }}</td>
+        <td>
+          {% if t.user_email %}{{ t.user_email }}{% elif t.telegram_id %}TG {{ t.telegram_id }}{% else %}—{% endif %}
+        </td>
         <td>{{ t.category or '—' }}</td>
         <td>{{ t.status }}</td>
-        <td style="max-width:320px">{{ t.message[:120] }}{% if t.message|length > 120 %}…{% endif %}</td>
+        <td style="max-width:280px">{{ t.message[:100] }}{% if t.message|length > 100 %}…{% endif %}</td>
         <td>{{ t.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td><a href="/admin/support/{{ t.id }}">Открыть</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="color:var(--muted)">Обращений нет</td></tr>
+      <tr><td colspan="7" style="color:var(--muted)">Обращений нет</td></tr>
       {% endfor %}
     </tbody>
   </table>

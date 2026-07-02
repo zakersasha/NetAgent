@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="{{ service_name }} — стабильное подключение и AI-помощник в Telegram. Настройка за 2 минуты.">
+  <meta name="description" content="{{ service_name }} — защищённый канал для удалённой работы и AI-помощник в Telegram.">
   <title>{% block title %}{{ service_name }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/main.css">
 </head>
@@ -20,6 +20,7 @@
         <div class="nav-actions">
           {% if user_id %}
             <a href="/cabinet">Кабинет</a>
+            <a href="/cabinet/support" class="nav-link-hide-mobile">Поддержка</a>
             <form action="/logout" method="post" style="display:inline;margin:0">
               <button type="submit" class="btn btn-ghost">Выйти</button>
             </form>
@@ -30,7 +31,7 @@
             {% if bot_url %}
               <a href="{{ bot_url }}" target="_blank" rel="noopener" class="btn btn-secondary nav-link-hide-mobile">Попробовать AI</a>
             {% endif %}
-            <a href="/#pricing" class="btn">Подключить</a>
+            <a href="/#pricing" class="btn">Тарифы</a>
           {% endif %}
         </div>
       </nav>
@@ -46,21 +47,20 @@
       <div class="footer-grid">
         <div class="footer-brand">
           <a href="/" class="logo">{{ service_name }}</a>
-          <p>Стабильное подключение и AI-помощник в Telegram. Один сервис — настройка за 2 минуты.</p>
+          <p>Защищённый канал для удалённой работы и AI-помощник в Telegram.</p>
         </div>
         <div class="footer-col">
           <h4>Продукт</h4>
           <a href="/#pricing">Тарифы</a>
-          <a href="/#how">Как это работает</a>
+          <a href="/#how">Как начать</a>
           <a href="/#faq">Вопросы и ответы</a>
           {% if bot_url %}<a href="{{ bot_url }}" target="_blank" rel="noopener">Telegram-бот</a>{% endif %}
         </div>
         <div class="footer-col">
-          <h4>Поддержка</h4>
-          <a href="/contacts">Контакты</a>
+          <h4>Документы</h4>
           <a href="/terms">Пользовательское соглашение</a>
           <a href="/privacy">Конфиденциальность</a>
-          {% if support_contact %}<a href="https://t.me/{{ support_contact.lstrip('@') }}" target="_blank" rel="noopener">{{ support_contact }}</a>{% endif %}
+          {% if user_id %}<a href="/cabinet/support">Поддержка</a>{% endif %}
         </div>
       </div>
       <div class="footer-bottom">

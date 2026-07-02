@@ -4,14 +4,14 @@
 <h1>Тарифы</h1>
 <div class="card">
   <table>
-    <thead><tr><th>Slug</th><th>Название</th><th>Цена</th><th>Трафик</th><th>Тип</th><th>Активен</th></tr></thead>
+    <thead><tr><th>Slug</th><th>Название</th><th>Цена</th><th>Устройств</th><th>Тип</th><th>Активен</th></tr></thead>
     <tbody>
       {% for p in plans %}
       <tr>
         <td><code>{{ p.slug }}</code></td>
         <td>{{ p.name }}</td>
         <td>{{ p.price_rub }} ₽</td>
-        <td>{% if p.traffic_limit_gb %}{{ p.traffic_limit_gb }} ГБ{% else %}—{% endif %}</td>
+        <td>{% if p.device_limit %}{{ p.device_limit }}{% else %}—{% endif %}</td>
         <td>{{ p.product_type }}</td>
         <td>{% if p.is_active %}✓{% else %}—{% endif %}</td>
       </tr>

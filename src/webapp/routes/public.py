@@ -44,7 +44,9 @@ async def privacy(request: Request):
 
 @router.get("/contacts")
 async def contacts(request: Request):
-    return templates.TemplateResponse("contacts.html", ctx(request))
+    if request.session.get("user_id"):
+        return RedirectResponse("/cabinet/support", status_code=303)
+    return RedirectResponse("/login?next=/cabinet/support", status_code=303)
 
 
 @router.get("/health")
