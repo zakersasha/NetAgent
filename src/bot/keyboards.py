@@ -12,7 +12,7 @@ def _plan(slug: str) -> Plan:
 def main_menu() -> InlineKeyboardMarkup:
     standard = _plan("combo")
     builder = InlineKeyboardBuilder()
-    builder.button(text="💬 Попробовать AI", callback_data="ai:open")
+    builder.button(text="💬 Чат с ИИ", callback_data="ai:open")
     builder.button(
         text=f"⭐ {standard.name} · {standard.price_rub} ₽",
         callback_data="plan:combo",
@@ -113,11 +113,20 @@ def ai_chat_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def payment_keyboard(plan: Plan) -> InlineKeyboardMarkup:
+def payment_keyboard(plan: Plan, *, can_pay: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
+    if can_pay:
+        builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
     builder.button(text="💳 Другие тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def subscription_reminder_keyboard(plan_slug: str, price_rub: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text=f"💳 Продлить · {price_rub} ₽", callback_data=f"plan:{plan_slug}")
+    builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.adjust(1)
     return builder.as_markup()
 

@@ -98,9 +98,10 @@ async def checkout(request: Request, plan_slug: str):
     plan = billing.get_plan(plan_slug)
     if not plan:
         return RedirectResponse("/cabinet", status_code=303)
+    can_pay, blocked_reason = billing.can_purchase_plan_for_user(user_id, plan_slug)
     return templates.TemplateResponse(
         "checkout.html",
-        ctx(request, plan=plan),
+        ctx(request, plan=plan, can_pay=can_pay, purchase_blocked=blocked_reason),
     )
 
 

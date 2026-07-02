@@ -34,6 +34,9 @@ class BillingError(ValueError):
     """Generic billing error."""
 
 
+EARLY_RENEWAL_DAYS = 5
+
+
 class DeviceView:
     __slots__ = (
         "id",
@@ -201,6 +204,26 @@ class BillingClient:
         with self._session_factory() as session:
             return self._load_subscription_view(session, telegram_id, line="ai")
 
+    def can_purchase_plan(self, telegram_id: int, plan_slug: str) -> tuple[bool, str | None]:
+        with self._session_factory() as session:
+            plan = session.scalar(select(Plan).where(Plan.slug == plan_slug, Plan.is_active.is_(True)))
+            if not plan:
+                return False, f"Unknown plan: {plan_slug}"
+            user = session.scalar(select(User).where(User.telegram_id == telegram_id))
+            if not user:
+                return True, None
+            return self._can_purchase_plan(session, user.id, plan)
+
+    def can_purchase_plan_for_user(self, user_id: int, plan_slug: str) -> tuple[bool, str | None]:
+        with self._session_factory() as session:
+            plan = session.scalar(select(Plan).where(Plan.slug == plan_slug, Plan.is_active.is_(True)))
+            if not plan:
+                return False, f"Unknown plan: {plan_slug}"
+            user = session.get(User, user_id)
+            if not user:
+                return False, "User not found"
+            return self._can_purchase_plan(session, user.id, plan)
+
     def activate_mock_payment(self, telegram_id: int, plan_slug: str) -> SubscriptionView:
         with self._session_factory() as session:
             plan = session.scalar(select(Plan).where(Plan.slug == plan_slug, Plan.is_active.is_(True)))
@@ -208,16 +231,13 @@ class BillingClient:
                 raise BillingError(f"Unknown plan: {plan_slug}")
 
             user = self._get_or_create_user(session, telegram_id)
+            allowed, reason = self._can_purchase_plan(session, user.id, plan)
+            if not allowed:
+                raise BillingError(reason or "Оплата сейчас недоступна")
             now = datetime.now(self.timezone)
             expires_at = now + timedelta(days=plan.duration_days)
 
-            purchased_type = plan.product_type
-            if purchased_type == "bundle":
-                types_to_expire = ("vpn", "ai", "bundle")
-            elif purchased_type == "vpn":
-                types_to_expire = ("vpn", "bundle")
-            else:
-                types_to_expire = ("ai", "bundle")
+            types_to_expire = self._conflicting_product_types(plan.product_type)
 
             old_sub_ids = list(
                 session.scalars(
@@ -518,18 +538,44 @@ class BillingClient:
             for device in devices
         )
 
+    def _conflicting_product_types(self, purchased_type: str) -> tuple[str, ...]:
+        if purchased_type == "bundle":
+            return ("vpn", "ai", "bundle")
+        if purchased_type == "vpn":
+            return ("vpn", "bundle")
+        return ("ai", "bundle")
+
+    def _can_purchase_plan(self, session: Session, user_id: int, plan: Plan) -> tuple[bool, str | None]:
+        types_to_check = self._conflicting_product_types(plan.product_type)
+        subs = session.scalars(
+            select(Subscription)
+            .join(Plan, Subscription.plan_id == Plan.id)
+            .where(
+                Subscription.user_id == user_id,
+                Subscription.status == "active",
+                Plan.product_type.in_(types_to_check),
+                Subscription.expires_at.is_not(None),
+                Subscription.expires_at > datetime.now(self.timezone),
+            )
+        ).all()
+        if not subs:
+            return True, None
+
+        max_days_left = max(self._days_left(sub.expires_at) for sub in subs if sub.expires_at)
+        if max_days_left > EARLY_RENEWAL_DAYS:
+            return False, (
+                f"Оплатить можно не раньше чем за {EARLY_RENEWAL_DAYS} дней до окончания подписки. "
+                f"Осталось {max_days_left} дн."
+            )
+        return True, None
+
     def _expire_conflicting_subscriptions(
         self,
         session: Session,
         user_id: int,
         purchased_type: str,
     ) -> None:
-        if purchased_type == "bundle":
-            types_to_expire = ("vpn", "ai", "bundle")
-        elif purchased_type == "vpn":
-            types_to_expire = ("vpn", "bundle")
-        else:
-            types_to_expire = ("ai", "bundle")
+        types_to_expire = self._conflicting_product_types(purchased_type)
 
         subs = session.scalars(
             select(Subscription)
@@ -547,6 +593,9 @@ class BillingClient:
         if line == "vpn":
             return ("vpn", "bundle")
         return ("ai", "bundle")
+
+    def days_left(self, expires_at: datetime) -> int:
+        return self._days_left(expires_at)
 
     def _days_left(self, expires_at: datetime) -> int:
         now = datetime.now(self.timezone)
@@ -620,15 +669,13 @@ class BillingClient:
             if not user:
                 raise BillingError("User not found")
 
+            allowed, reason = self._can_purchase_plan(session, user.id, plan)
+            if not allowed:
+                raise BillingError(reason or "Оплата сейчас недоступна")
+
             now = datetime.now(self.timezone)
             expires_at = now + timedelta(days=plan.duration_days)
-            purchased_type = plan.product_type
-            if purchased_type == "bundle":
-                types_to_expire = ("vpn", "ai", "bundle")
-            elif purchased_type == "vpn":
-                types_to_expire = ("vpn", "bundle")
-            else:
-                types_to_expire = ("ai", "bundle")
+            types_to_expire = self._conflicting_product_types(plan.product_type)
 
             old_sub_ids = list(
                 session.scalars(

@@ -21,9 +21,17 @@
     <div class="price" style="font-size:2rem;font-weight:700;margin-bottom:0.5rem">{{ plan.price_rub }} ₽</div>
     <p style="color:var(--muted);font-size:0.88rem;margin:0 0 1.5rem">Подписка активируется сразу. Профиль доступа — в личном кабинете.</p>
 
+    {% if purchase_blocked %}
+    <div class="error" style="margin-bottom:1rem">{{ purchase_blocked }}</div>
+    {% endif %}
+
+    {% if can_pay %}
     <form method="post" action="/cabinet/pay/{{ plan.slug }}">
       <button type="submit" class="btn btn-block btn-lg">Оплатить {{ plan.price_rub }} ₽</button>
     </form>
+    {% else %}
+    <p style="color:var(--muted);font-size:0.9rem">Оплата станет доступна за 5 дней до окончания текущей подписки.</p>
+    {% endif %}
 
     <p style="margin-top:1.25rem"><a href="/cabinet" style="color:var(--muted)">← Назад в кабинет</a></p>
   </div>

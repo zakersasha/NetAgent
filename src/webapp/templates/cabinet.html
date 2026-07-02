@@ -70,7 +70,7 @@
   {% if account.has_ai_unlimited %}
   <section class="card cabinet-section">
     <h2>AI-помощник</h2>
-    <p>Безлимит активен. {% if bot_url %}<a href="{{ bot_url }}" target="_blank" rel="noopener">Откройте бота</a> и нажмите «Попробовать AI».{% endif %}</p>
+    <p>Безлимит активен. {% if bot_url %}<a href="{{ bot_url }}" target="_blank" rel="noopener">Откройте бота</a> и нажмите «Чат с ИИ».{% endif %}</p>
   </section>
   {% elif not account.vpn_subscription or account.vpn_subscription.plan.product_type == 'vpn' %}
   <section class="upgrade-banner">

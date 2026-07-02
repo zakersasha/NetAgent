@@ -4,18 +4,13 @@
 {% block content %}
 <div class="container legal-page" style="padding:2rem 0 4rem">
   <h1>Контакты</h1>
-  <p>Мы на связи в Telegram и по email. Обычно отвечаем в течение нескольких часов.</p>
+  <p>Мы на связи в Telegram. Обычно отвечаем в течение нескольких часов.</p>
 
   <div class="grid-2" style="margin-top:2rem">
     <article class="card">
       <h3>Поддержка в Telegram</h3>
       <p>{% if support_contact %}<a href="https://t.me/{{ support_contact.lstrip('@') }}" target="_blank" rel="noopener">{{ support_contact }}</a>{% else %}Укажите BOT_SUPPORT_CONTACT в настройках{% endif %}</p>
       <p style="font-size:0.88rem;color:var(--muted)">Помощь с подключением, оплатой и AI-чатом.</p>
-    </article>
-    <article class="card">
-      <h3>Email</h3>
-      <p><a href="mailto:{{ company_email }}">{{ company_email }}</a></p>
-      <p style="font-size:0.88rem;color:var(--muted)">Для юридических и деловых вопросов.</p>
     </article>
     {% if bot_url %}
     <article class="card">

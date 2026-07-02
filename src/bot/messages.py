@@ -122,7 +122,7 @@ def shop_text(plans: tuple[Plan, ...]) -> str:
     return "\n".join(rows)
 
 
-def plan_details_text(plan: Plan) -> str:
+def plan_details_text(plan: Plan, purchase_blocked: str | None = None) -> str:
     m = marketing_for(plan.slug)
     devices = f"📱 <b>{m.devices}</b> · {m.audience}\n" if m and plan.product_type != "ai" else ""
 
@@ -150,12 +150,15 @@ def plan_details_text(plan: Plan) -> str:
             f"Срок: <b>{plan.duration_days} дней</b>\n"
             f"Цена: <b>{plan.price_rub} ₽</b>"
         )
-    return (
+    body = (
         body
         + "\n\n✓ Активация сразу после оплаты\n"
         "✓ Профиль в «Моя подписка»\n"
         "✓ Поддержка в боте и на сайте"
     )
+    if purchase_blocked:
+        body += f"\n\n⚠️ {escape(purchase_blocked)}"
+    return body
 
 
 def payment_success_text(subscription: SubscriptionView) -> str:
@@ -166,7 +169,7 @@ def payment_success_text(subscription: SubscriptionView) -> str:
             f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
             f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
             "📋 «Моя подписка» — профиль доступа\n"
-            "💬 «Попробовать AI» — помощник без лимита"
+            "💬 «Чат с ИИ» — помощник без лимита"
         )
     if subscription.plan.product_type == "ai":
         return (
@@ -334,3 +337,21 @@ def ai_quota_exceeded_text() -> str:
 def ai_generating_text(frame: int) -> str:
     dots = "." * (frame % 3 + 1)
     return f"✨ <b>Думаю</b>{dots}"
+
+
+def subscription_reminder_2d_text(plan_name: str, expires: str, days_left: int) -> str:
+    return (
+        "⏰ <b>Подписка скоро закончится</b>\n\n"
+        f"Тариф: <b>{escape(plan_name)}</b>\n"
+        f"Действует до: <b>{expires}</b> ({days_left} дн.)\n\n"
+        "Продлите сейчас — доступ не прервётся."
+    )
+
+
+def subscription_expiry_day_text(plan_name: str, expires: str) -> str:
+    return (
+        "🔔 <b>Сегодня последний день подписки</b>\n\n"
+        f"Тариф: <b>{escape(plan_name)}</b>\n"
+        f"Действует до: <b>{expires}</b>\n\n"
+        "Оплатите продление, чтобы сохранить доступ."
+    )

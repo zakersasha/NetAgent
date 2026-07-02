@@ -115,7 +115,11 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
         if not plan:
             await callback.answer("Тариф не найден", show_alert=True)
             return
-        await callback.message.edit_text(plan_details_text(plan), reply_markup=payment_keyboard(plan))
+        can_pay, blocked_reason = billing.can_purchase_plan(callback.from_user.id, plan_slug)
+        await callback.message.edit_text(
+            plan_details_text(plan, purchase_blocked=blocked_reason),
+            reply_markup=payment_keyboard(plan, can_pay=can_pay),
+        )
         await callback.answer()
 
     @router.callback_query(lambda query: query.data and query.data.startswith("mockpay:"))

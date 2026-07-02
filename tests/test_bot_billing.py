@@ -1,9 +1,12 @@
+from datetime import datetime, timedelta
+
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from bot.billing import BillingClient
+from bot.billing import BillingClient, BillingError
 from netagent_db.base import Base
+from netagent_db.models import Subscription, User
 from netagent_db.seed import seed_plans
 
 PUBLIC_KEY = "YTQ_dIa_739_d6x7OUAd3XjMbpX6UOnWBMkGVtEhi18"
@@ -57,12 +60,50 @@ def test_repeated_payment_updates_plan_and_keeps_key(billing_client: BillingClie
     billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
     device = billing_client.ensure_vpn_key(telegram_id=123)
 
+    _set_subscription_days_left(billing_client, telegram_id=123, days_left=3)
+
     subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="combo_max")
 
     assert subscription.plan.slug == "combo_max"
     assert len(subscription.devices) == 1
     assert subscription.devices[0].xray_uuid == device.xray_uuid
     assert subscription.traffic_limit_gb == 150
+
+
+def _set_subscription_days_left(billing_client: BillingClient, telegram_id: int, days_left: int) -> None:
+    with billing_client._session_factory() as session:  # noqa: SLF001
+        user = session.scalar(select(User).where(User.telegram_id == telegram_id))
+        assert user is not None
+        sub = session.scalar(
+            select(Subscription).where(Subscription.user_id == user.id, Subscription.status == "active")
+        )
+        assert sub is not None
+        sub.expires_at = datetime.now(billing_client.timezone) + timedelta(days=days_left)
+        session.commit()
+
+
+def test_early_renewal_blocked_when_more_than_5_days_left(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
+
+    can_pay, reason = billing_client.can_purchase_plan(123, "connect_plus")
+    assert not can_pay
+    assert reason is not None
+    assert "5" in reason
+
+    with pytest.raises(BillingError, match="5"):
+        billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect_plus")
+
+
+def test_early_renewal_allowed_within_5_days(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
+    _set_subscription_days_left(billing_client, telegram_id=123, days_left=4)
+
+    can_pay, reason = billing_client.can_purchase_plan(123, "connect_plus")
+    assert can_pay
+    assert reason is None
+
+    subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect_plus")
+    assert subscription.plan.slug == "connect_plus"
 
 
 def test_unknown_plan_is_rejected(billing_client: BillingClient) -> None:

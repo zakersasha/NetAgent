@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 
 from aiogram import Bot, Dispatcher
@@ -11,6 +13,7 @@ from bot.ai_service import AiChatService
 from bot.billing import BillingClient
 from bot.commands import setup_bot_commands
 from bot.handlers import create_router
+from bot.subscription_reminders import subscription_reminder_loop
 from bot.support_handlers import create_support_router
 from bot.support_service import SupportService
 from bot.xray_provisioner import XrayProvisioner
@@ -129,7 +132,20 @@ async def main() -> None:
     dispatcher.include_router(create_router(settings, billing, bot_username))
 
     await setup_bot_commands(bot)
-    await dispatcher.start_polling(bot)
+    reminder_task = asyncio.create_task(
+        subscription_reminder_loop(
+            bot,
+            billing,
+            session_factory,
+            settings.timezone,
+        )
+    )
+    try:
+        await dispatcher.start_polling(bot)
+    finally:
+        reminder_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await reminder_task
 
 
 if __name__ == "__main__":
