@@ -8,12 +8,10 @@ from netagent_common.traffic import format_traffic
 def welcome_text(service_name: str) -> str:
     return (
         f"👋 <b>{escape(service_name)}</b>\n\n"
-        "Ваш умный помощник в Telegram: <b>чат с AI</b>, ответы на вопросы, "
-        "идеи и подсказки на каждый день.\n\n"
-        "🆓 <b>3 сообщения AI</b> бесплатно каждый день\n"
-        "💬 Подписка — безлимитный чат с ассистентом\n"
-        "🌐 Тарифы Combo — AI + стабильное подключение\n\n"
-        "Выберите действие 👇"
+        "AI-помощник в Telegram + стабильное подключение в одной подписке.\n\n"
+        "🆓 <b>3 сообщения AI</b> бесплатно сегодня\n"
+        "⭐ <b>Combo</b> — интернет + AI без лимита · 299 ₽/мес\n\n"
+        "Что делаем?"
     )
 
 
@@ -24,7 +22,9 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
         sub = status.vpn_subscription
         traffic_line = ""
         if sub.traffic_limit_gb:
-            traffic_line = f"\nТрафик: <b>{format_traffic(sub.traffic_used_bytes, sub.traffic_limit_gb)}</b>"
+            traffic_line = (
+                f"\nТрафик: <b>{format_traffic(sub.traffic_used_bytes, sub.traffic_limit_gb)}</b>"
+            )
         rows.append(
             f"\n🌐 <b>Подключение</b> · активно\n"
             f"Тариф: {escape(sub.plan.name)}\n"
@@ -36,13 +36,13 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
         if sub.devices:
             device = sub.devices[0]
             rows.append(
-                f"\n\n🔑 <b>Ваш ключ</b>\n"
+                f"\n\n🔑 <b>Ключ подключения</b>\n"
                 f"<code>{escape(device.connection_uri)}</code>"
             )
         else:
             rows.append(
-                "\n\n🔑 Ключ создаётся… Откройте «Моя подписка» через пару секунд "
-                "или нажмите «Получить ключ»."
+                "\n\n🔑 Ключ создаётся… Нажмите «Получить ключ» "
+                "или подождите пару секунд."
             )
     else:
         rows.append("\n🌐 <b>Подключение</b> · не активно")
@@ -66,7 +66,7 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
 
     if not status.vpn_subscription:
         rows.append(
-            "\n\n💡 Подписки нет — откройте «Тарифы» и выберите подходящий план."
+            "\n\n💡 Подключите <b>Combo</b> — интернет и AI в одном тарифе."
         )
 
     return "\n".join(rows)
@@ -76,7 +76,7 @@ def instructions_short_text() -> str:
     return (
         "📖 <b>Как подключить</b>\n"
         "1. Скопируйте ключ ниже.\n"
-        "2. Установите приложение (v2rayNG, Streisand, Hiddify).\n"
+        "2. Установите v2rayNG, Streisand или Hiddify.\n"
         "3. «Импорт» → вставьте ключ → включите."
     )
 
@@ -84,16 +84,16 @@ def instructions_short_text() -> str:
 def shop_text(plans: tuple[Plan, ...]) -> str:
     rows = [
         "💳 <b>Тарифы на 30 дней</b>\n",
-        "Оплата тестовая (кнопка «Оплатить») — для проверки.\n",
+        "Combo — лучший выбор: интернет + AI выгоднее, чем по отдельности.\n",
     ]
     bundles = [p for p in plans if p.product_type == "bundle"]
     vpns = [p for p in plans if p.product_type == "vpn"]
     ais = [p for p in plans if p.product_type == "ai"]
 
     if bundles:
-        rows.append("\n<b>🔥 Пакеты — подключение + AI</b>")
+        rows.append("\n<b>⭐ Пакеты — подключение + AI</b>")
         for plan in bundles:
-            hint = " ⭐ хит" if plan.slug == "combo" else ""
+            hint = " · рекомендуем" if plan.slug == "combo" else ""
             rows.append(
                 f"\n<b>{escape(plan.name)}</b>{hint} · {plan.price_rub} ₽\n"
                 f"{escape(plan.description)}"
@@ -120,9 +120,11 @@ def shop_text(plans: tuple[Plan, ...]) -> str:
 
 def plan_details_text(plan: Plan) -> str:
     if plan.product_type == "bundle":
-        traffic = f"📊 Трафик: <b>{plan.traffic_limit_gb} ГБ/мес</b>\n" if plan.traffic_limit_gb else ""
+        traffic = (
+            f"📊 Трафик: <b>{plan.traffic_limit_gb} ГБ/мес</b>\n" if plan.traffic_limit_gb else ""
+        )
         body = (
-            f"🔥 <b>{escape(plan.name)}</b>\n\n"
+            f"⭐ <b>{escape(plan.name)}</b>\n\n"
             f"{escape(plan.description)}\n\n"
             f"{traffic}"
             "💬 AI: <b>без лимита</b>\n"
@@ -144,31 +146,36 @@ def plan_details_text(plan: Plan) -> str:
             f"Срок: <b>{plan.duration_days} дней</b>\n"
             f"Цена: <b>{plan.price_rub} ₽</b>"
         )
-    return body + "\n\nНажмите «Оплатить» — ключ появится в «Моя подписка»."
+    return (
+        body
+        + "\n\n✓ Активация сразу после оплаты\n"
+        "✓ Ключ в «Моя подписка»\n"
+        "✓ Поддержка в этом чате"
+    )
 
 
 def payment_success_text(subscription: SubscriptionView) -> str:
     expires = subscription.expires_at.strftime("%d.%m.%Y")
     if subscription.plan.product_type == "bundle":
         return (
-            "✅ <b>Оплачено!</b>\n\n"
+            "✅ <b>Готово!</b>\n\n"
             f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
             f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-            "📋 «Моя подписка» — ваш ключ и лимит трафика.\n"
-            "💬 «Чат с ассистентом» — AI без лимита."
+            "🔑 Ключ уже в «Моя подписка»\n"
+            "💬 AI без лимита — напишите сообщение прямо сейчас"
         )
     if subscription.plan.product_type == "ai":
         return (
-            "✅ <b>Оплачено!</b>\n\n"
+            "✅ <b>Готово!</b>\n\n"
             f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
             f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-            "Откройте «Чат с ассистентом» и напишите сообщение."
+            "💬 Нажмите «Начать чат» и напишите сообщение."
         )
     return (
-        "✅ <b>Оплачено!</b>\n\n"
+        "✅ <b>Готово!</b>\n\n"
         f"Тариф: <b>{escape(subscription.plan.name)}</b>\n"
         f"До: <b>{expires}</b> ({subscription.days_left} дн.)\n\n"
-        "📋 «Моя подписка» — ваш ключ готов."
+        "🔑 Ключ уже в «Моя подписка»"
     )
 
 
@@ -176,9 +183,11 @@ def devices_text(subscription: SubscriptionView) -> str:
     expires_at = subscription.expires_at.strftime("%d.%m.%Y")
     traffic = ""
     if subscription.traffic_limit_gb:
-        traffic = f"Трафик: <b>{format_traffic(subscription.traffic_used_bytes, subscription.traffic_limit_gb)}</b>\n"
+        traffic = (
+            f"Трафик: <b>{format_traffic(subscription.traffic_used_bytes, subscription.traffic_limit_gb)}</b>\n"
+        )
     rows = [
-        "🔑 <b>Мой ключ</b>\n",
+        "🔑 <b>Ключ подключения</b>\n",
         f"Тариф: <b>{escape(subscription.plan.name)}</b>",
         traffic + f"До: <b>{expires_at}</b> ({subscription.days_left} дн.)",
     ]
@@ -196,7 +205,7 @@ def devices_text(subscription: SubscriptionView) -> str:
 def device_detail_text(device: DeviceView) -> str:
     return (
         f"{device.emoji} <b>{escape(device.display_name)}</b>\n\n"
-        "🔑 <b>Ваш ключ</b>\n"
+        "🔑 <b>Ключ подключения</b>\n"
         f"<code>{escape(device.connection_uri)}</code>\n\n"
         "Скопируйте и вставьте в приложение."
     )
@@ -213,7 +222,8 @@ def regenerate_key_text() -> str:
 def no_subscription_text() -> str:
     return (
         "📋 <b>Подписка не активна</b>\n\n"
-        "Выберите тариф в «Тарифы» — Combo даёт AI и подключение в одном."
+        "⭐ <b>Combo</b> — интернет и AI в одном тарифе.\n"
+        "Нажмите «Подключить Combo» или выберите другой план."
     )
 
 
@@ -263,7 +273,7 @@ def instructions_text() -> str:
 def support_prompt_text() -> str:
     return (
         "🆘 <b>Поддержка</b>\n\n"
-        "Выберите тему или просто напишите, что не работает — "
+        "Выберите тему или напишите, что не работает — "
         "мы сохраним обращение и ответим."
     )
 
@@ -298,7 +308,7 @@ def support_notify_text(
 def share_text(bot_username: str) -> str:
     return (
         "👥 <b>Поделиться</b>\n\n"
-        "Отправьте ссылку другу — он откроет бота и сможет "
+        "Отправьте ссылку другу — он сможет "
         "попробовать AI бесплатно.\n\n"
         f"Ссылка: https://t.me/{escape(bot_username)}"
     )
@@ -319,9 +329,10 @@ def ai_chat_intro_text(remaining: int, has_subscription: bool, free_daily_limit:
 
 def ai_quota_exceeded_text() -> str:
     return (
-        "⛔ <b>Лимит на сегодня</b>\n\n"
-        "Бесплатно — 3 сообщения в день.\n"
-        "В «Тарифы» — Combo или Lite AI для безлимита."
+        "⛔ <b>На сегодня бесплатные сообщения закончились</b>\n\n"
+        "Завтра снова 3 сообщения — или подключите Combo:\n"
+        "• AI без лимита\n"
+        "• + стабильный интернет"
     )
 
 

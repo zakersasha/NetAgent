@@ -10,9 +10,10 @@
 
 | URL | Назначение |
 |-----|------------|
-| `/` | Лендинг, тарифы |
+| `/` | Лендинг (hero, тарифы, FAQ, отзывы) |
 | `/register`, `/login` | Регистрация / вход пользователя |
-| `/cabinet` | Личный кабинет, ключ, mock-оплата |
+| `/cabinet` | Личный кабинет, ключ, оплата |
+| `/terms`, `/privacy`, `/contacts` | Юридические страницы и контакты |
 | `/admin/login` | Вход администратора |
 | `/admin` | Дашборд, пользователи, платежи, тарифы, тикеты поддержки |
 
@@ -25,6 +26,9 @@
 ```env
 WEB_SECRET_KEY=<длинная случайная строка>
 WEB_PORT=8001
+TELEGRAM_BOT_USERNAME=YourBotUsername
+BOT_SUPPORT_CONTACT=@your_support
+COMPANY_EMAIL=support@example.com
 
 # те же, что для бота:
 DATABASE_URL=postgresql+psycopg://...
@@ -80,7 +84,7 @@ sudo ufw allow 8001/tcp
 
 ## 4. Первый вход
 
-**Пользователь:** `/register` → email + пароль → `/cabinet` → тариф → «Оплатить (mock)».
+**Пользователь:** `/register` → email + пароль → `/cabinet` → тариф → «Оплатить».
 
 **Админ:** `/admin/login` — email и пароль из `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD`.
 

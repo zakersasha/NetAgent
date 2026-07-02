@@ -26,6 +26,7 @@ async def register_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    plan: str = Form(""),
 ):
     session_factory = _session_factory(request)
     with session_factory() as session:
@@ -38,6 +39,11 @@ async def register_submit(
                 status_code=400,
             )
     request.session["user_id"] = user.id
+    plan_slug = plan.strip()
+    if plan_slug:
+        billing = request.app.state.billing
+        if billing.get_plan(plan_slug):
+            return RedirectResponse(f"/cabinet/plans/{plan_slug}", status_code=303)
     return RedirectResponse("/cabinet", status_code=303)
 
 

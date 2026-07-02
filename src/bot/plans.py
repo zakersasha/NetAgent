@@ -17,7 +17,7 @@ PLANS: tuple[Plan, ...] = (
     Plan(
         slug="combo_max",
         name="Combo Max",
-        description="Подключение 200 ГБ + AI без лимита · для семьи",
+        description="200 ГБ + AI без лимита — для семьи и активного использования",
         price_rub=449,
         traffic_limit_gb=200,
         product_type="bundle",
@@ -25,7 +25,7 @@ PLANS: tuple[Plan, ...] = (
     Plan(
         slug="combo",
         name="Combo",
-        description="Подключение 80 ГБ + AI без лимита",
+        description="80 ГБ + AI без лимита — лучший выбор",
         price_rub=299,
         traffic_limit_gb=80,
         product_type="bundle",
@@ -33,21 +33,21 @@ PLANS: tuple[Plan, ...] = (
     Plan(
         slug="connect_plus",
         name="Connect+",
-        description="Стабильное подключение · 100 ГБ/мес",
+        description="Стабильное подключение · 100 ГБ в месяц",
         price_rub=279,
         traffic_limit_gb=100,
     ),
     Plan(
         slug="connect",
         name="Connect",
-        description="Стабильное подключение · 50 ГБ/мес",
+        description="Стабильное подключение · 50 ГБ в месяц",
         price_rub=179,
         traffic_limit_gb=50,
     ),
     Plan(
         slug="lite_ai",
         name="Lite AI",
-        description="AI-ассистент без лимита сообщений",
+        description="AI-помощник без лимита сообщений в Telegram",
         price_rub=99,
         traffic_limit_gb=None,
         product_type="ai",

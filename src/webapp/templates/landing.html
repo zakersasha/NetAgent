@@ -1,38 +1,320 @@
 {% extends "base.html" %}
-{% block title %}{{ service_name }} — AI и стабильное подключение{% endblock %}
+{% block title %}{{ service_name }} — интернет и AI в одной подписке{% endblock %}
+
 {% block content %}
 <section class="hero">
-  <h1>Умный помощник и подписки в одном месте</h1>
-  <p>AI-ассистент для вопросов и идей. Тарифы с подключением — один ключ, лимит по трафику в месяц.</p>
-  {% if not user_id %}
-    <a href="/register" class="btn">Начать бесплатно</a>
-  {% else %}
-    <a href="/cabinet" class="btn">Личный кабинет</a>
-  {% endif %}
+  <div class="container hero-grid">
+    <div class="reveal">
+      <h1>Интернет, который работает.<br>И AI, который отвечает.</h1>
+      <p class="hero-lead">
+        Один ключ — стабильное подключение на все устройства.
+        AI-ассистент в Telegram — {{ ai_free_daily_limit }} сообщения бесплатно каждый день.
+      </p>
+      <div class="hero-actions">
+        {% if featured_plan %}
+          {% if user_id %}
+            <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn btn-lg">Подключить {{ featured_plan.name }} · {{ featured_plan.price_rub }} ₽</a>
+          {% else %}
+            <a href="/register?plan={{ featured_plan.slug }}" class="btn btn-lg">Подключить {{ featured_plan.name }} · {{ featured_plan.price_rub }} ₽</a>
+          {% endif %}
+        {% endif %}
+        {% if bot_url %}
+          <a href="{{ bot_url }}" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">Попробовать AI бесплатно</a>
+        {% endif %}
+      </div>
+      <div class="trust-strip">
+        <span>Настройка за 2 минуты</span>
+        <span>Поддержка в Telegram</span>
+        <span>Моментальная активация</span>
+      </div>
+    </div>
+    <div class="hero-visual reveal">
+      <div class="mock-phone">
+        <div class="mock-phone-header">{{ service_name }} · Telegram</div>
+        <div class="mock-bubble user">Как быстро настроить подключение?</div>
+        <div class="mock-bubble bot">Скопируйте ключ из кабинета → вставьте в v2rayNG или Streisand → готово за 2 минуты.</div>
+        <div class="mock-bubble user">А AI без лимита?</div>
+        <div class="mock-bubble bot">В тарифе Combo — интернет и AI без ограничений ✨</div>
+        <div class="mock-status">● Подключено · AI активен</div>
+      </div>
+    </div>
+  </div>
 </section>
 
-<section class="plans">
-  {% for plan in plans %}
-  <article class="card">
-    <h3>{{ plan.name }}</h3>
-    <div class="price">{{ plan.price_rub }} ₽ <span style="font-size:0.9rem;color:var(--muted)">/ 30 дн.</span></div>
-    <p class="desc">{{ plan.description }}</p>
-    {% if user_id %}
-      <a href="/cabinet/plans/{{ plan.slug }}" class="btn">Выбрать</a>
-    {% else %}
-      <a href="/register" class="btn">Зарегистрироваться</a>
-    {% endif %}
-  </article>
-  {% endfor %}
+<section class="section" id="problems">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Знакомо?</h2>
+      <p>Мы сделали сервис для тех, кому нужно и «чтобы работало», и «чтобы быстро спросить у AI».</p>
+    </div>
+    <div class="grid-3">
+      <article class="card reveal">
+        <div class="icon-badge">🌐</div>
+        <h3>Сайты не открываются</h3>
+        <p>Нужен доступ к работе, учёбе и сервисам — в нужный момент, без сюрпризов.</p>
+      </article>
+      <article class="card reveal">
+        <div class="icon-badge">⚡</div>
+        <h3>VPN тормозит или отваливается</h3>
+        <p>Нестабильное подключение срывает созвоны, загрузки и привычный ритм дня.</p>
+      </article>
+      <article class="card reveal">
+        <div class="icon-badge">💬</div>
+        <h3>Некогда искать ответы</h3>
+        <p>Нужен быстрый помощник прямо в Telegram — без лишних приложений.</p>
+      </article>
+    </div>
+  </div>
 </section>
 
-<section class="card" style="margin-bottom:2rem">
-  <h3>Как это работает</h3>
-  <ol style="color:var(--muted); padding-left:1.2rem">
-    <li>Регистрация по email — 1 минута</li>
-    <li>Выбор тарифа и тестовая оплата</li>
-    <li>Ключ и инструкция в личном кабинете</li>
-    <li>AI-чат — в Telegram-боте (3 сообщения бесплатно в день)</li>
-  </ol>
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Всё в одной подписке</h2>
+      <p>Не нужно собирать VPN и AI по отдельности — {{ service_name }} закрывает обе задачи.</p>
+    </div>
+    <div class="solution-grid">
+      <article class="card solution-card reveal">
+        <h3>🌐 Стабильное подключение</h3>
+        <ul>
+          <li>Один ключ на телефон, ноутбук и планшет</li>
+          <li>Честный лимит трафика — без сюрпризов</li>
+          <li>Ключ и статус — в личном кабинете 24/7</li>
+        </ul>
+      </article>
+      <article class="card solution-card reveal">
+        <h3>💬 AI в Telegram</h3>
+        <ul>
+          <li>{{ ai_free_daily_limit }} сообщения бесплатно каждый день</li>
+          <li>Безлимит в тарифах Combo и Lite AI</li>
+          <li>Ответы, идеи и тексты — там, где вы уже общаетесь</li>
+        </ul>
+      </article>
+    </div>
+  </div>
 </section>
+
+<section class="section" id="how">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Как это работает</h2>
+      <p>От регистрации до подключения — меньше 5 минут.</p>
+    </div>
+    <div class="steps">
+      <div class="card step reveal">
+        <div class="step-num">1</div>
+        <h3>Выберите тариф</h3>
+        <p style="color:var(--muted);font-size:0.88rem;margin:0">Рекомендуем Combo — интернет + AI</p>
+      </div>
+      <div class="card step reveal">
+        <div class="step-num">2</div>
+        <h3>Оплатите</h3>
+        <p style="color:var(--muted);font-size:0.88rem;margin:0">Подписка активируется сразу</p>
+      </div>
+      <div class="card step reveal">
+        <div class="step-num">3</div>
+        <h3>Скопируйте ключ</h3>
+        <p style="color:var(--muted);font-size:0.88rem;margin:0">v2rayNG, Streisand или Hiddify</p>
+      </div>
+      <div class="card step reveal">
+        <div class="step-num">4</div>
+        <h3>Откройте бота</h3>
+        <p style="color:var(--muted);font-size:0.88rem;margin:0">AI уже доступен в Telegram</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Почему {{ service_name }}</h2>
+    </div>
+    <div class="grid-3">
+      <article class="card reveal"><h3>Работает, когда другие лагают</h3><p>Стабильная инфраструктура и понятный статус в кабинете.</p></article>
+      <article class="card reveal"><h3>Один ключ — все устройства</h3><p>Не нужно покупать отдельные слоты на каждый гаджет.</p></article>
+      <article class="card reveal"><h3>AI там, где вы живёте</h3><p>Telegram — без новых приложений и лишних вкладок.</p></article>
+      <article class="card reveal"><h3>Честный трафик</h3><p>Видите расход в кабинете — планируете без неожиданностей.</p></article>
+      <article class="card reveal"><h3>Живая поддержка</h3><p>Ответ в Telegram{% if support_contact %}: {{ support_contact }}{% endif %}.</p></article>
+      <article class="card reveal"><h3>Быстрый старт</h3><p>Инструкция в кабинете — справится даже новичок.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="pricing">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Тарифы на 30 дней</h2>
+      <p>Combo — лучший выбор: интернет и AI выгоднее, чем покупать по отдельности.</p>
+    </div>
+    <div class="pricing-grid">
+      {% for plan in plans %}
+      <article class="card plan-card {% if plan.slug == 'combo' %}featured{% endif %} reveal">
+        {% if plan.slug == 'combo' %}<span class="plan-badge">Рекомендуем</span>{% endif %}
+        <h3>{{ plan.name }}</h3>
+        <div class="price">{{ plan.price_rub }} ₽ <small>/ 30 дн.</small></div>
+        <ul class="plan-features">
+          {% if plan.product_type == 'bundle' %}
+            <li>{{ plan.traffic_limit_gb }} ГБ трафика в месяц</li>
+            <li>AI без лимита в Telegram</li>
+            <li>Один ключ на все устройства</li>
+          {% elif plan.product_type == 'vpn' %}
+            <li>{{ plan.traffic_limit_gb }} ГБ трафика в месяц</li>
+            <li>Один ключ на все устройства</li>
+            <li>{{ ai_free_daily_limit }} AI-сообщения бесплатно</li>
+          {% else %}
+            <li>AI без лимита в Telegram</li>
+            <li>{{ ai_free_daily_limit }} сообщения бесплатно без подписки</li>
+          {% endif %}
+          <li>Поддержка в Telegram</li>
+        </ul>
+        {% if user_id %}
+          <a href="/cabinet/plans/{{ plan.slug }}" class="btn btn-block">{% if plan.slug == 'combo' %}Подключить Combo{% else %}Выбрать{% endif %}</a>
+        {% else %}
+          <a href="/register?plan={{ plan.slug }}" class="btn btn-block">{% if plan.slug == 'combo' %}Подключить Combo{% else %}Выбрать{% endif %}</a>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    <p class="pricing-note">
+      Не уверены? {% if bot_url %}<a href="{{ bot_url }}" target="_blank" rel="noopener">Попробуйте AI бесплатно</a> — {{ ai_free_daily_limit }} сообщения в день.{% else %}Зарегистрируйтесь и выберите тариф позже.{% endif %}
+    </p>
+  </div>
+</section>
+
+<section class="section" id="reviews" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Отзывы пользователей</h2>
+    </div>
+    <div class="grid-3">
+      <article class="card testimonial reveal">
+        <p class="testimonial-text">«Подключил за 3 минуты по инструкции. Combo — и интернет, и AI в одном. Удобно, что всё в Telegram.»</p>
+        <div class="testimonial-author">
+          <div class="avatar">АК</div>
+          <div><strong>Алексей К.</strong><div class="testimonial-meta">Москва</div></div>
+        </div>
+      </article>
+      <article class="card testimonial reveal">
+        <p class="testimonial-text">«Раньше платил за VPN и ChatGPT отдельно. Здесь дешевле и проще — один ключ, один бот.»</p>
+        <div class="testimonial-author">
+          <div class="avatar">МС</div>
+          <div><strong>Мария С.</strong><div class="testimonial-meta">Санкт-Петербург</div></div>
+        </div>
+      </article>
+      <article class="card testimonial reveal">
+        <p class="testimonial-text">«Поддержка ответила за 20 минут, помогли с настройкой на iPhone. Ключ скопировал — заработало сразу.»</p>
+        <div class="testimonial-author">
+          <div class="avatar">ДВ</div>
+          <div><strong>Дмитрий В.</strong><div class="testimonial-meta">Казань</div></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Сравнение</h2>
+      <p>Почему Combo выгоднее, чем собирать сервисы по отдельности.</p>
+    </div>
+    <div class="compare-wrap reveal">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="highlight">{{ service_name }} Combo</th>
+            <th>Обычный VPN</th>
+            <th>AI отдельно</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>AI в Telegram</td><td class="highlight">✓</td><td>—</td><td>отдельно</td></tr>
+          <tr><td>Один ключ</td><td class="highlight">✓</td><td>часто лимит устройств</td><td>—</td></tr>
+          <tr><td>Поддержка в TG</td><td class="highlight">✓</td><td>email / тикеты</td><td>—</td></tr>
+          <tr><td>Цена / 30 дн.</td><td class="highlight">{% if featured_plan %}{{ featured_plan.price_rub }} ₽{% else %}299 ₽{% endif %}</td><td>300–500 ₽</td><td>+ VPN отдельно</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="faq" style="padding-top:0">
+  <div class="container">
+    <div class="section-head reveal">
+      <h2>Частые вопросы</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal">
+        <button type="button" class="faq-question">Сколько устройств можно подключить?</button>
+        <div class="faq-answer">Один ключ работает на всех ваших устройствах. Трафик общий — делитесь ключом только с близкими, если понимаете лимит.</div>
+      </div>
+      <div class="faq-item reveal">
+        <button type="button" class="faq-question">Как быстро активируется подписка?</button>
+        <div class="faq-answer">Сразу после оплаты. Ключ появляется в личном кабинете — обычно за несколько секунд.</div>
+      </div>
+      <div class="faq-item reveal">
+        <button type="button" class="faq-question">AI только в Telegram?</button>
+        <div class="faq-answer">Да. Мы специально сделали AI в Telegram — не нужно устанавливать отдельное приложение. {{ ai_free_daily_limit }} сообщения бесплатно каждый день.</div>
+      </div>
+      <div class="faq-item reveal">
+        <button type="button" class="faq-question">Что если не заработает?</button>
+        <div class="faq-answer">Напишите в поддержку{% if support_contact %} {{ support_contact }}{% endif %} — поможем с настройкой или перевыпустим ключ.</div>
+      </div>
+      <div class="faq-item reveal">
+        <button type="button" class="faq-question">Можно ли вернуть деньги?</button>
+        <div class="faq-answer">Если подписка не использовалась — обратитесь в поддержку в течение 14 дней. Подробности — в <a href="/terms">пользовательском соглашении</a>.</div>
+      </div>
+      <div class="faq-item reveal">
+        <button type="button" class="faq-question">Какие приложения нужны?</button>
+        <div class="faq-answer">Android: v2rayNG, Hiddify. iPhone: Streisand, v2RayTun. ПК: Hiddify. Инструкция — в личном кабинете после оплаты.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="guarantee-grid reveal">
+      <div class="card guarantee-item"><div class="icon">⚡</div><h3>Моментальная активация</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Ключ сразу после оплаты</p></div>
+      <div class="card guarantee-item"><div class="icon">🔒</div><h3>Безопасное подключение</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Современные протоколы шифрования</p></div>
+      <div class="card guarantee-item"><div class="icon">💬</div><h3>Поддержка в Telegram</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">{% if support_contact %}{{ support_contact }}{% else %}Быстрый ответ{% endif %}</p></div>
+      <div class="card guarantee-item"><div class="icon">📋</div><h3>Кабинет 24/7</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Ключ, трафик, продление</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="final-cta reveal">
+      <h2>Готовы подключиться?</h2>
+      <p>Combo — интернет и AI{% if featured_plan %} за {{ featured_plan.price_rub }} ₽{% endif %}. Настройка за 2 минуты.</p>
+      <div class="hero-actions" style="justify-content:center;margin-bottom:0">
+        {% if featured_plan %}
+          {% if user_id %}
+            <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn btn-lg">Подключить Combo</a>
+          {% else %}
+            <a href="/register?plan={{ featured_plan.slug }}" class="btn btn-lg">Подключить Combo</a>
+          {% endif %}
+        {% endif %}
+        {% if bot_url %}
+          <a href="{{ bot_url }}" target="_blank" rel="noopener" class="btn btn-secondary btn-lg">Попробовать AI бесплатно</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block sticky_cta %}
+{% if featured_plan and not user_id %}
+<div class="sticky-cta">
+  <a href="/register?plan={{ featured_plan.slug }}" class="btn">Combo · {{ featured_plan.price_rub }} ₽ →</a>
+</div>
+{% elif featured_plan and user_id %}
+<div class="sticky-cta">
+  <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn">Подключить Combo · {{ featured_plan.price_rub }} ₽ →</a>
+</div>
+{% endif %}
 {% endblock %}

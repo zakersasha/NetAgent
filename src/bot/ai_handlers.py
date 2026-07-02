@@ -10,13 +10,12 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.ai_service import AiChatService, AiQuotaExceededError
 from bot.billing import BillingClient
-from bot.keyboards import ai_chat_keyboard, main_menu, shop_keyboard
+from bot.keyboards import ai_chat_keyboard, main_menu, upsell_keyboard
 from bot.messages import (
     ai_chat_intro_text,
     ai_generating_text,
     ai_quota_exceeded_text,
     activation_error_text,
-    shop_text,
 )
 from bot.settings import BotSettings
 
@@ -103,10 +102,9 @@ def create_ai_router(
         except AiQuotaExceededError:
             stop_event.set()
             await animation_task
-            plans = billing.plans("shop")
             await status.edit_text(
                 ai_quota_exceeded_text(),
-                reply_markup=shop_keyboard(plans),
+                reply_markup=upsell_keyboard(),
             )
             return
         except RuntimeError as exc:

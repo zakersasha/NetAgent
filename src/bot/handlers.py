@@ -16,6 +16,7 @@ from bot.keyboards import (
     devices_keyboard,
     main_menu,
     payment_keyboard,
+    payment_success_keyboard,
     share_keyboard,
     shop_keyboard,
 )
@@ -57,7 +58,7 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
             status = billing.get_account_status(message.from_user.id)
             await message.answer(
                 no_subscription_text(),
-                reply_markup=account_keyboard(status),
+                reply_markup=account_keyboard(status, bot_username),
             )
         else:
             await message.answer(
@@ -70,7 +71,7 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
         status = billing.get_account_status(message.from_user.id)
         await message.answer(
             account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status),
+            reply_markup=account_keyboard(status, bot_username),
             disable_web_page_preview=True,
         )
 
@@ -89,7 +90,7 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
         status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
             account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status),
+            reply_markup=account_keyboard(status, bot_username),
         )
         await callback.answer()
 
@@ -136,10 +137,9 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
             )
             return
 
-        status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
             payment_success_text(subscription),
-            reply_markup=account_keyboard(status),
+            reply_markup=payment_success_keyboard(subscription),
         )
 
     @router.callback_query(lambda query: query.data in {"my_key", "status"})
@@ -149,7 +149,7 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
             status = billing.get_account_status(callback.from_user.id)
             await callback.message.edit_text(
                 no_subscription_text(),
-                reply_markup=account_keyboard(status),
+                reply_markup=account_keyboard(status, bot_username),
             )
         else:
             await callback.message.edit_text(
@@ -173,7 +173,7 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
         status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
             account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status),
+            reply_markup=account_keyboard(status, bot_username),
         )
 
     @router.callback_query(lambda query: query.data == "device:regenerate")
@@ -208,7 +208,7 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
                 status = billing.get_account_status(callback.from_user.id)
                 await callback.message.edit_text(
                     no_subscription_text(),
-                    reply_markup=account_keyboard(status),
+                    reply_markup=account_keyboard(status, bot_username),
                 )
             await callback.answer()
             return

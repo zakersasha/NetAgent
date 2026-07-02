@@ -20,12 +20,15 @@ async def cabinet_index(request: Request):
 
     billing: BillingClient = request.app.state.billing
     status = billing.get_account_status_for_user(user_id)
+    plans = billing.plans("shop")
+    featured = next((p for p in plans if p.slug == "combo"), None)
     return templates.TemplateResponse(
         "cabinet.html",
         ctx(
             request,
             account=status,
             format_traffic=format_traffic,
+            featured_plan=featured,
         ),
     )
 

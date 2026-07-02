@@ -1,51 +1,103 @@
 {% extends "base.html" %}
 {% block title %}Личный кабинет — {{ service_name }}{% endblock %}
+
 {% block content %}
-<h1>Личный кабинет</h1>
+<div class="container" style="padding-top:2rem;padding-bottom:3rem">
+  <h1 class="page-title">Личный кабинет</h1>
 
-{% if request.query_params.get('paid') %}
-<div class="success">Оплата прошла успешно. Подписка активирована.</div>
-{% endif %}
-
-{% if account.vpn_subscription %}
-<section class="card" style="margin-bottom:1rem">
-  <h2>🌐 Подключение</h2>
-  <p>Тариф: <strong>{{ account.vpn_subscription.plan.name }}</strong></p>
-  <p>До: <strong>{{ account.vpn_subscription.expires_at.strftime('%d.%m.%Y') }}</strong> ({{ account.vpn_subscription.days_left }} дн.)</p>
-  {% if account.vpn_subscription.traffic_limit_gb %}
-  <p>Трафик: <strong>{{ format_traffic(account.vpn_subscription.traffic_used_bytes, account.vpn_subscription.traffic_limit_gb) }}</strong></p>
+  {% if request.query_params.get('paid') %}
+  <div class="success">Оплата прошла успешно. Подписка активирована — ключ готов ниже.</div>
   {% endif %}
-  {% if account.vpn_subscription.devices %}
-  <p style="margin-top:1rem"><strong>Ваш ключ</strong></p>
-  <div class="key-box">{{ account.vpn_subscription.devices[0].connection_uri }}</div>
-  <p style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem">Не делитесь ключом — трафик общий для всех, кто им пользуется.</p>
-  <form method="post" action="/cabinet/regenerate-key" style="margin-top:1rem" onsubmit="return confirm('Старый ключ перестанет работать. Продолжить?')">
-    <button type="submit" class="btn btn-secondary">Выпустить новый ключ</button>
-  </form>
+
+  <div class="status-badges">
+    {% if account.vpn_subscription %}
+      <span class="badge active">🌐 Подключение активно</span>
+    {% else %}
+      <span class="badge inactive">🌐 Подключение не активно</span>
+    {% endif %}
+    {% if account.has_ai_unlimited %}
+      <span class="badge active">💬 AI без лимита</span>
+    {% else %}
+      <span class="badge inactive">💬 AI: {{ account.ai_free_remaining }} из {{ ai_free_daily_limit }} сегодня</span>
+    {% endif %}
+  </div>
+
+  {% if account.vpn_subscription %}
+  {% set sub = account.vpn_subscription %}
+  <section class="card cabinet-section">
+    <h2>Подключение</h2>
+    <p>Тариф: <strong>{{ sub.plan.name }}</strong></p>
+    <p>Действует до: <strong>{{ sub.expires_at.strftime('%d.%m.%Y') }}</strong> ({{ sub.days_left }} дн.)</p>
+
+    {% if sub.traffic_limit_gb %}
+    {% set limit_bytes = sub.traffic_limit_gb * 1073741824 %}
+    {% set pct = (sub.traffic_used_bytes / limit_bytes * 100) if limit_bytes else 0 %}
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Трафик за месяц</span>
+        <span>{{ format_traffic(sub.traffic_used_bytes, sub.traffic_limit_gb) }}</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill {% if pct > 90 %}danger{% elif pct > 75 %}warning{% endif %}" style="width: {{ [pct, 100]|min }}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if sub.devices %}
+    <p><strong>Ключ подключения</strong></p>
+    <div class="key-box" id="vpn-key">{{ sub.devices[0].connection_uri }}</div>
+    <div class="key-actions">
+      <button type="button" class="btn btn-secondary" data-copy-target="vpn-key">Скопировать ключ</button>
+      <form method="post" action="/cabinet/regenerate-key" style="display:inline;margin:0" onsubmit="return confirm('Старый ключ перестанет работать. Продолжить?')">
+        <button type="submit" class="btn btn-secondary">Новый ключ</button>
+      </form>
+    </div>
+    <p style="color:var(--muted);font-size:0.85rem;margin-top:0.75rem">Не делитесь ключом — трафик общий для всех, кто им пользуется.</p>
+
+    <div class="instructions">
+      <details>
+        <summary>Как подключить за 2 минуты</summary>
+        <ol>
+          <li>Скопируйте ключ выше.</li>
+          <li>Установите приложение: v2rayNG / Streisand / Hiddify.</li>
+          <li>«Импорт» → вставьте ключ → включите подключение.</li>
+          <li>Не работает — напишите {% if support_contact %}<a href="https://t.me/{{ support_contact.lstrip('@') }}" target="_blank" rel="noopener">{{ support_contact }}</a>{% else %}в поддержку{% endif %}.</li>
+        </ol>
+      </details>
+    </div>
+    {% else %}
+    <p style="color:var(--muted)">Ключ создаётся… Обновите страницу через несколько секунд.</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="card empty-state">
+    <h2>Подключение не активно</h2>
+    <p>Выберите тариф — ключ появится здесь сразу после оплаты. Настройка занимает 2 минуты.</p>
+    {% if featured_plan %}
+    <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn">Подключить {{ featured_plan.name }} · {{ featured_plan.price_rub }} ₽</a>
+    {% else %}
+    <a href="/#pricing" class="btn">Посмотреть тарифы</a>
+    {% endif %}
+  </section>
   {% endif %}
-</section>
-{% else %}
-<section class="card" style="margin-bottom:1rem">
-  <h2>🌐 Подключение</h2>
-  <p style="color:var(--muted)">Нет активной подписки. Выберите тариф на <a href="/">главной</a>.</p>
-</section>
-{% endif %}
 
-{% if account.has_ai_unlimited %}
-<section class="card" style="margin-bottom:1rem">
-  <h2>💬 AI-ассистент</h2>
-  <p>Безлимитный чат — откройте Telegram-бота и нажмите «Чат с ассистентом».</p>
-</section>
-{% else %}
-<section class="card" style="margin-bottom:1rem">
-  <h2>💬 AI-ассистент</h2>
-  <p>Бесплатно в боте: {{ account.ai_free_remaining }} сообщений сегодня.</p>
-  <p style="color:var(--muted)">Тариф Combo или Lite AI — безлимит в боте.</p>
-</section>
-{% endif %}
+  {% if account.has_ai_unlimited %}
+  <section class="card cabinet-section">
+    <h2>AI-ассистент</h2>
+    <p>Безлимитный чат активен. {% if bot_url %}<a href="{{ bot_url }}" target="_blank" rel="noopener">Откройте бота</a> и нажмите «Попробовать AI».{% else %}Откройте Telegram-бота.{% endif %}</p>
+  </section>
+  {% elif not account.vpn_subscription or account.vpn_subscription.plan.product_type == 'vpn' %}
+  <section class="upgrade-banner">
+    <h3>Добавьте AI без лимита</h3>
+    <p>Combo — интернет и AI в одной подписке. Или Lite AI, если нужен только чат.</p>
+    <a href="/cabinet/plans/combo" class="btn">Подключить Combo</a>
+  </section>
+  {% endif %}
 
-<section class="card">
-  <h3>Тарифы</h3>
-  <p><a href="/">Посмотреть все тарифы и оплатить</a></p>
-</section>
+  <section class="card">
+    <h3>Тарифы и продление</h3>
+    <p style="color:var(--muted);margin-bottom:1rem">Выберите или смените тариф — подписка продлится на 30 дней.</p>
+    <a href="/#pricing" class="btn btn-secondary">Все тарифы</a>
+  </section>
+</div>
 {% endblock %}
