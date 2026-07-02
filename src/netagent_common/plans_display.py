@@ -22,13 +22,13 @@ PLAN_MARKETING: dict[str, PlanMarketing] = {
         channel_label="Защищённый канал",
     ),
     "combo": PlanMarketing(
-        devices="до 5 устройств",
-        audience="команда и бизнес",
+        devices="до 3 устройств",
+        audience="команда + AI",
         channel_label="Защищённый канал + AI",
     ),
     "combo_max": PlanMarketing(
-        devices="до 10 устройств",
-        audience="семья и расширенная команда",
+        devices="до 5 устройств",
+        audience="семья + AI",
         channel_label="Защищённый канал + AI",
     ),
     "lite_ai": PlanMarketing(

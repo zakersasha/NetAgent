@@ -15,11 +15,11 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
 BOT_DESCRIPTION = (
     "Защищённый канал для удалённой работы и AI-помощник в Telegram.\n"
     "🆓 3 сообщения AI бесплатно каждый день.\n"
-    "⭐ Тариф «Бизнес» — до 5 устройств + AI.\n"
+    "⭐ «Команда + AI» — до 3 устройств + AI.\n"
     "Поддержка: /support"
 )
 
-BOT_SHORT_DESCRIPTION = "Защищённый канал и AI в Telegram. 3 msg бесплатно · Бизнес 299 ₽"
+BOT_SHORT_DESCRIPTION = "Защищённый канал и AI в Telegram. 3 msg бесплатно · от 149 ₽"
 
 
 async def setup_bot_commands(bot: Bot) -> None:

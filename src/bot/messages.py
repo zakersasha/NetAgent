@@ -10,7 +10,7 @@ def welcome_text(service_name: str) -> str:
         f"👋 <b>{escape(service_name)}</b>\n\n"
         "Защищённый канал для удалённой работы и AI-помощник в Telegram.\n\n"
         "🆓 <b>3 сообщения AI</b> бесплатно сегодня\n"
-        "⭐ <b>Бизнес</b> — до 5 устройств + AI без лимита · 299 ₽/мес\n\n"
+        "⭐ <b>Команда + AI</b> — до 3 устройств + AI · 279 ₽/мес\n\n"
         "Что делаем?"
     )
 
@@ -62,7 +62,7 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
 
     if not status.vpn_subscription:
         rows.append(
-            "\n\n💡 Тариф «Бизнес» — канал до 5 устройств и AI в одной подписке."
+            "\n\n💡 «Команда + AI» — до 3 устройств и AI в одной подписке."
         )
 
     return "\n".join(rows)
@@ -80,7 +80,7 @@ def instructions_short_text() -> str:
 def shop_text(plans: tuple[Plan, ...]) -> str:
     rows = [
         "💳 <b>Тарифы на 30 дней</b>\n",
-        "Выберите подписку по числу устройств. «Бизнес» — рекомендуем для команд.\n",
+        "Выберите подписку по числу устройств. «Команда + AI» — оптимальный выбор.\n",
     ]
     bundles = [p for p in plans if p.product_type == "bundle"]
     channels = [p for p in plans if p.product_type == "vpn"]
@@ -219,7 +219,7 @@ def regenerate_key_text() -> str:
 def no_subscription_text() -> str:
     return (
         "📋 <b>Подписка не активна</b>\n\n"
-        "⭐ Тариф «Бизнес» — до 5 устройств и AI в одной подписке."
+        "⭐ «Команда + AI» — до 3 устройств и AI в одной подписке."
     )
 
 
@@ -319,9 +319,9 @@ def ai_chat_intro_text(remaining: int, has_subscription: bool, free_daily_limit:
 def ai_quota_exceeded_text() -> str:
     return (
         "⛔ <b>На сегодня бесплатные сообщения закончились</b>\n\n"
-        "Завтра снова 3 сообщения — или тариф «Бизнес»:\n"
+        "Завтра снова 3 сообщения — или «Команда + AI»:\n"
         "• AI без лимита\n"
-        "• + защищённый канал до 5 устройств"
+        "• + канал до 3 устройств"
     )
 
 

@@ -8,7 +8,7 @@ from bot.plans import Plan
 def main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="💬 Попробовать AI", callback_data="ai:open")
-    builder.button(text="⭐ Тариф «Бизнес»", callback_data="plan:combo")
+    builder.button(text="⭐ Команда + AI", callback_data="plan:combo")
     builder.button(text="📋 Моя подписка", callback_data="account")
     builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="🆘 Поддержка", callback_data="support")
@@ -45,7 +45,7 @@ def shop_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
 
 def upsell_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="⭐ Бизнес · 299 ₽", callback_data="plan:combo")
+    builder.button(text="⭐ Команда + AI · 279 ₽", callback_data="plan:combo")
     builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
@@ -63,7 +63,7 @@ def account_keyboard(status: AccountStatusView, bot_username: str = "") -> Inlin
         if bot_username:
             builder.button(text="👥 Поделиться", callback_data="share")
     else:
-        builder.button(text="⭐ Тариф «Бизнес»", callback_data="plan:combo")
+        builder.button(text="⭐ Команда + AI", callback_data="plan:combo")
         builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
@@ -87,7 +87,7 @@ def payment_success_keyboard(subscription: SubscriptionView) -> InlineKeyboardMa
 def ai_chat_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Моя подписка", callback_data="account")
-    builder.button(text="⭐ Бизнес · 299 ₽", callback_data="plan:combo")
+    builder.button(text="⭐ Команда + AI · 279 ₽", callback_data="plan:combo")
     builder.button(text="⬅️ Выйти из чата", callback_data="ai:leave")
     builder.adjust(1, 1, 1)
     return builder.as_markup()
