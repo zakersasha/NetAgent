@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+{% block title %}Обращение #{{ ticket.id }}{% endblock %}
+{% block content %}
+<p><a href="/admin/support">← Все обращения</a></p>
+<h1>Обращение #{{ ticket.id }}</h1>
+
+{% if request.query_params.get('sent') %}
+<div class="success">Ответ отправлен пользователю{% if ticket.telegram_id %} в Telegram{% endif %}.</div>
+{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="card" style="margin-bottom:1rem">
+  <p><strong>Пользователь:</strong>
+    {% if ticket.user_email %}{{ ticket.user_email }}{% endif %}
+    {% if ticket.telegram_id %} · Telegram {{ ticket.telegram_id }}{% endif %}
+  </p>
+  <p><strong>Категория:</strong> {{ ticket.category or '—' }}</p>
+  <p><strong>Статус:</strong> {{ ticket.status }}</p>
+  <p><strong>Дата:</strong> {{ ticket.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+  <hr style="border-color:var(--border);margin:1rem 0">
+  <p style="white-space:pre-wrap">{{ ticket.message }}</p>
+</div>
+
+{% if ticket.admin_reply %}
+<div class="card" style="margin-bottom:1rem">
+  <h3>Ответ ({{ ticket.replied_at.strftime('%d.%m.%Y %H:%M') if ticket.replied_at else '' }})</h3>
+  <p style="white-space:pre-wrap">{{ ticket.admin_reply }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>{% if ticket.admin_reply %}Новый ответ{% else %}Ответить от имени бота{% endif %}</h3>
+  <p style="color:var(--muted);font-size:0.88rem">
+    {% if ticket.telegram_id %}Сообщение уйдёт пользователю в Telegram.{% else %}Пользователь увидит ответ в личном кабинете на сайте.{% endif %}
+  </p>
+  <form method="post" action="/admin/support/{{ ticket.id }}/reply">
+    <textarea name="reply" required rows="5" style="width:100%;padding:0.75rem;margin:1rem 0;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);color:var(--text);font-family:inherit">{{ ticket.admin_reply or '' }}</textarea>
+    <button type="submit" class="btn">Отправить ответ</button>
+  </form>
+</div>
+{% endblock %}

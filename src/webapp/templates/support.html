@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Поддержка — {{ service_name }}{% endblock %}
+
+{% block content %}
+<div class="container" style="padding-top:2rem;padding-bottom:3rem">
+  <h1 class="page-title">Поддержка</h1>
+  <p style="color:var(--muted);margin:-0.5rem 0 1.5rem">Опишите вопрос — ответим в Telegram-боте или здесь в кабинете.</p>
+
+  {% if request.query_params.get('sent') %}
+  <div class="success">Обращение отправлено. Мы ответим в ближайшее время.</div>
+  {% endif %}
+
+  <div class="grid-2" style="align-items:start">
+    <div class="card form-wide" style="margin:0">
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <form method="post">
+        <label>Тема</label>
+        <select name="category" style="width:100%;padding:0.75rem;margin-bottom:1rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-soft);color:var(--text)">
+          <option value="access">Защищённый канал / настройка</option>
+          <option value="ai">AI-помощник</option>
+          <option value="billing">Оплата и подписка</option>
+          <option value="">Другое</option>
+        </select>
+        <label>Сообщение</label>
+        <textarea name="message" required rows="5" style="width:100%;padding:0.75rem;margin-bottom:1rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-soft);color:var(--text);font-family:inherit;resize:vertical"></textarea>
+        <button type="submit" class="btn btn-block">Отправить</button>
+      </form>
+      {% if bot_url %}
+      <p class="form-hint" style="margin-top:1rem">Или напишите в <a href="{{ bot_url }}" target="_blank" rel="noopener">Telegram-боте</a> → «Поддержка».</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <h2 style="font-size:1.1rem;margin:0 0 1rem">Ваши обращения</h2>
+      {% for t in tickets %}
+      <article class="card" style="margin-bottom:0.75rem">
+        <div style="display:flex;justify-content:space-between;gap:0.5rem;font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem">
+          <span>#{{ t.id }} · {{ t.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+          <span>{{ t.status }}</span>
+        </div>
+        <p style="margin:0 0 0.75rem;font-size:0.92rem">{{ t.message }}</p>
+        {% if t.admin_reply %}
+        <div style="background:var(--accent-soft);border-radius:var(--radius-sm);padding:0.85rem;font-size:0.92rem">
+          <strong>Ответ поддержки</strong> ({{ t.replied_at.strftime('%d.%m.%Y %H:%M') if t.replied_at else '' }})<br>
+          {{ t.admin_reply }}
+        </div>
+        {% elif t.status == 'open' %}
+        <p style="color:var(--muted);font-size:0.85rem;margin:0">Ожидает ответа…</p>
+        {% endif %}
+      </article>
+      {% else %}
+      <p style="color:var(--muted)">Обращений пока нет.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <p style="margin-top:1.5rem"><a href="/cabinet" style="color:var(--muted)">← Личный кабинет</a></p>
+</div>
+{% endblock %}
