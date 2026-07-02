@@ -25,7 +25,7 @@ PLANS: tuple[Plan, ...] = (
     ),
     Plan(
         slug="combo",
-        name="Команда + AI",
+        name="Стандарт",
         description="до 3 устройств · канал и AI-помощник",
         price_rub=279,
         traffic_limit_gb=80,

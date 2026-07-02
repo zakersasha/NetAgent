@@ -1,16 +1,18 @@
 from html import escape
 
 from bot.billing import AccountStatusView, DeviceView, SubscriptionView
-from bot.plans import Plan
+from bot.plans import Plan, get_plan
 from netagent_common.plans_display import marketing_for
 
 
 def welcome_text(service_name: str) -> str:
+    standard = get_plan("combo")
     return (
         f"👋 <b>{escape(service_name)}</b>\n\n"
         "Защищённый канал для удалённой работы и AI-помощник в Telegram.\n\n"
         "🆓 <b>3 сообщения AI</b> бесплатно сегодня\n"
-        "⭐ <b>Команда + AI</b> — до 3 устройств + AI · 279 ₽/мес\n\n"
+        f"⭐ Рекомендуем тариф <b>{escape(standard.name)}</b> — "
+        f"канал и AI, {standard.price_rub} ₽/мес\n\n"
         "Что делаем?"
     )
 
@@ -61,8 +63,10 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
         )
 
     if not status.vpn_subscription:
+        standard = get_plan("combo")
         rows.append(
-            "\n\n💡 «Команда + AI» — до 3 устройств и AI в одной подписке."
+            f"\n\n💡 Тариф «{escape(standard.name)}» — канал и AI, "
+            f"{standard.description.lower()}."
         )
 
     return "\n".join(rows)
@@ -80,14 +84,14 @@ def instructions_short_text() -> str:
 def shop_text(plans: tuple[Plan, ...]) -> str:
     rows = [
         "💳 <b>Тарифы на 30 дней</b>\n",
-        "Выберите подписку по числу устройств. «Команда + AI» — оптимальный выбор.\n",
+        "Личный → Команда → Стандарт / Семья. Подробности — у каждого тарифа.\n",
     ]
     bundles = [p for p in plans if p.product_type == "bundle"]
     channels = [p for p in plans if p.product_type == "vpn"]
     ais = [p for p in plans if p.product_type == "ai"]
 
     if bundles:
-        rows.append("\n<b>⭐ Канал + AI</b>")
+        rows.append("\n<b>⭐ Канал и AI-помощник</b>")
         for plan in bundles:
             m = marketing_for(plan.slug)
             hint = " · рекомендуем" if plan.slug == "combo" else ""
@@ -217,9 +221,11 @@ def regenerate_key_text() -> str:
 
 
 def no_subscription_text() -> str:
+    standard = get_plan("combo")
     return (
         "📋 <b>Подписка не активна</b>\n\n"
-        "⭐ «Команда + AI» — до 3 устройств и AI в одной подписке."
+        f"⭐ «{escape(standard.name)}» — {escape(standard.description)}, "
+        f"{standard.price_rub} ₽/мес."
     )
 
 
@@ -317,11 +323,11 @@ def ai_chat_intro_text(remaining: int, has_subscription: bool, free_daily_limit:
 
 
 def ai_quota_exceeded_text() -> str:
+    standard = get_plan("combo")
     return (
         "⛔ <b>На сегодня бесплатные сообщения закончились</b>\n\n"
-        "Завтра снова 3 сообщения — или «Команда + AI»:\n"
-        "• AI без лимита\n"
-        "• + канал до 3 устройств"
+        f"Завтра снова 3 сообщения — или тариф «{escape(standard.name)}» "
+        f"({standard.price_rub} ₽): AI без лимита и защищённый канал."
     )
 
 

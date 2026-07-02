@@ -2,13 +2,21 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.billing import AccountStatusView, SubscriptionView
-from bot.plans import Plan
+from bot.plans import Plan, get_plan
+
+
+def _plan(slug: str) -> Plan:
+    return get_plan(slug)
 
 
 def main_menu() -> InlineKeyboardMarkup:
+    standard = _plan("combo")
     builder = InlineKeyboardBuilder()
     builder.button(text="💬 Попробовать AI", callback_data="ai:open")
-    builder.button(text="⭐ Команда + AI", callback_data="plan:combo")
+    builder.button(
+        text=f"⭐ {standard.name} · {standard.price_rub} ₽",
+        callback_data="plan:combo",
+    )
     builder.button(text="📋 Моя подписка", callback_data="account")
     builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="🆘 Поддержка", callback_data="support")
@@ -23,11 +31,11 @@ def shop_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
     ais = [p for p in plans if p.product_type == "ai"]
 
     for plan in bundles:
-        if plan.slug == "combo":
-            label = f"⭐ {plan.name} · {plan.price_rub} ₽ — рекомендуем"
-        else:
-            label = f"⭐ {plan.name} · {plan.price_rub} ₽"
-        builder.button(text=label, callback_data=f"plan:{plan.slug}")
+        prefix = "⭐ " if plan.slug == "combo" else "✨ "
+        builder.button(
+            text=f"{prefix}{plan.name} · {plan.price_rub} ₽",
+            callback_data=f"plan:{plan.slug}",
+        )
     for plan in channels:
         builder.button(
             text=f"🔒 {plan.name} · {plan.price_rub} ₽",
@@ -44,8 +52,12 @@ def shop_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
 
 
 def upsell_keyboard() -> InlineKeyboardMarkup:
+    standard = _plan("combo")
     builder = InlineKeyboardBuilder()
-    builder.button(text="⭐ Команда + AI · 279 ₽", callback_data="plan:combo")
+    builder.button(
+        text=f"⭐ {standard.name} · {standard.price_rub} ₽",
+        callback_data="plan:combo",
+    )
     builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
@@ -53,6 +65,7 @@ def upsell_keyboard() -> InlineKeyboardMarkup:
 
 
 def account_keyboard(status: AccountStatusView, bot_username: str = "") -> InlineKeyboardMarkup:
+    standard = _plan("combo")
     builder = InlineKeyboardBuilder()
     vpn = status.vpn_subscription
     if vpn:
@@ -63,7 +76,10 @@ def account_keyboard(status: AccountStatusView, bot_username: str = "") -> Inlin
         if bot_username:
             builder.button(text="👥 Поделиться", callback_data="share")
     else:
-        builder.button(text="⭐ Команда + AI", callback_data="plan:combo")
+        builder.button(
+            text=f"⭐ {standard.name} · {standard.price_rub} ₽",
+            callback_data="plan:combo",
+        )
         builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
@@ -85,9 +101,13 @@ def payment_success_keyboard(subscription: SubscriptionView) -> InlineKeyboardMa
 
 
 def ai_chat_keyboard() -> InlineKeyboardMarkup:
+    standard = _plan("combo")
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Моя подписка", callback_data="account")
-    builder.button(text="⭐ Команда + AI · 279 ₽", callback_data="plan:combo")
+    builder.button(
+        text=f"⭐ {standard.name} · {standard.price_rub} ₽",
+        callback_data="plan:combo",
+    )
     builder.button(text="⬅️ Выйти из чата", callback_data="ai:leave")
     builder.adjust(1, 1, 1)
     return builder.as_markup()

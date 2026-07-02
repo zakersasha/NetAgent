@@ -20,7 +20,7 @@ PLAN_SEED = [
     },
     {
         "slug": "combo",
-        "name": "Команда + AI",
+        "name": "Стандарт",
         "description": "до 3 устройств · канал и AI-помощник",
         "duration_days": 30,
         "price_rub": 279,

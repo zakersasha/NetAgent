@@ -34,7 +34,7 @@
         <div class="mock-bubble user">Как подключить удалённого сотрудника?</div>
         <div class="mock-bubble bot">Скопируйте профиль доступа из кабинета → импортируйте в клиентское приложение → готово.</div>
         <div class="mock-bubble user">А AI для команды?</div>
-        <div class="mock-bubble bot">«Команда + AI» — канал до 3 устройств и AI без лимита ✨</div>
+        <div class="mock-bubble bot">Тариф «Стандарт» — канал и AI для команды ✨</div>
         <div class="mock-status">● Канал активен · AI доступен</div>
       </div>
     </div>
@@ -85,7 +85,7 @@
         <h3>💬 AI в Telegram</h3>
         <ul>
           <li>{{ ai_free_daily_limit }} сообщения бесплатно каждый день</li>
-          <li>Безлимит в «Команда + AI», «Семья», «AI Помощник»</li>
+          <li>AI без лимита — в тарифах «Стандарт», «Семья», «AI Помощник»</li>
           <li>Для рабочих и личных задач</li>
         </ul>
       </article>
@@ -115,7 +115,7 @@
   <div class="container">
     <div class="section-head reveal">
       <h2>Тарифы на 30 дней</h2>
-      <p>Личный → Команда → Семья. «Команда + AI» — лучший старт с AI.</p>
+      <p>Только канал: «Личный», «Команда». С AI: «Стандарт», «Семья».</p>
     </div>
     <div class="pricing-grid">
       {% for plan in plans %}
@@ -131,9 +131,9 @@
           {% endfor %}
         </ul>
         {% if user_id %}
-          <a href="/cabinet/plans/{{ plan.slug }}" class="btn btn-block">{% if plan.slug == 'combo' %}Выбрать «Команда + AI»{% else %}Выбрать{% endif %}</a>
+          <a href="/cabinet/plans/{{ plan.slug }}" class="btn btn-block">Выбрать «{{ plan.name }}»</a>
         {% else %}
-          <a href="/register?plan={{ plan.slug }}" class="btn btn-block">{% if plan.slug == 'combo' %}Выбрать «Команда + AI»{% else %}Выбрать{% endif %}</a>
+          <a href="/register?plan={{ plan.slug }}" class="btn btn-block">Выбрать «{{ plan.name }}»</a>
         {% endif %}
       </article>
       {% endfor %}
@@ -154,7 +154,7 @@
       </div>
       <div class="faq-item reveal">
         <button type="button" class="faq-question">Сколько устройств можно подключить?</button>
-        <div class="faq-answer">Зависит от тарифа: «Личный» — 1, «Команда» — 3, «Семья» — 5 устройств.</div>
+        <div class="faq-answer">«Личный» и «Команда» — только канал (1 и 3 устройства). «Стандарт» — канал и AI, 3 устройства. «Семья» — канал и AI, 5 устройств.</div>
       </div>
       <div class="faq-item reveal">
         <button type="button" class="faq-question">Как обратиться в поддержку?</button>
@@ -172,13 +172,13 @@
   <div class="container">
     <div class="final-cta reveal">
       <h2>Готовы подключить команду?</h2>
-      <p>«Команда + AI» — до 3 устройств и AI{% if featured_plan %} · {{ featured_plan.price_rub }} ₽{% endif %}.</p>
+      <p>Тариф «{{ featured_plan.name }}»{% if featured_plan %} · {{ featured_plan.price_rub }} ₽{% endif %} — канал и AI.</p>
       <div class="hero-actions" style="justify-content:center;margin-bottom:0">
         {% if featured_plan %}
           {% if user_id %}
-            <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn btn-lg">Выбрать «Команда + AI»</a>
+            <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn btn-lg">«{{ featured_plan.name }}»</a>
           {% else %}
-            <a href="/register?plan={{ featured_plan.slug }}" class="btn btn-lg">Выбрать «Команда + AI»</a>
+            <a href="/register?plan={{ featured_plan.slug }}" class="btn btn-lg">«{{ featured_plan.name }}»</a>
           {% endif %}
         {% endif %}
         {% if bot_url %}
@@ -194,9 +194,9 @@
 {% if featured_plan %}
 <div class="sticky-cta">
   {% if user_id %}
-    <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn">Команда + AI · {{ featured_plan.price_rub }} ₽ →</a>
+    <a href="/cabinet/plans/{{ featured_plan.slug }}" class="btn">{{ featured_plan.name }} · {{ featured_plan.price_rub }} ₽ →</a>
   {% else %}
-    <a href="/register?plan={{ featured_plan.slug }}" class="btn">Команда + AI · {{ featured_plan.price_rub }} ₽ →</a>
+    <a href="/register?plan={{ featured_plan.slug }}" class="btn">{{ featured_plan.name }} · {{ featured_plan.price_rub }} ₽ →</a>
   {% endif %}
 </div>
 {% endif %}
