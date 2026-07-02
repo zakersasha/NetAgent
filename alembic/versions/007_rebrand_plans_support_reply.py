@@ -31,6 +31,19 @@ def upgrade() -> None:
     )
     op.alter_column("support_tickets", "telegram_id", existing_type=sa.BigInteger(), nullable=True)
 
+    op.drop_constraint("ck_plans_device_limit", "plans", type_="check")
+    op.drop_constraint("ck_subscriptions_device_limit", "subscriptions", type_="check")
+    op.create_check_constraint(
+        "ck_plans_device_limit",
+        "plans",
+        "device_limit BETWEEN 0 AND 20",
+    )
+    op.create_check_constraint(
+        "ck_subscriptions_device_limit",
+        "subscriptions",
+        "device_limit BETWEEN 0 AND 20",
+    )
+
     bind = op.get_bind()
     for slug, name, description, device_limit in PLAN_UPDATES:
         bind.execute(
@@ -43,6 +56,30 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    for slug, _, _, device_limit in PLAN_UPDATES:
+        if device_limit <= 3:
+            bind.execute(
+                sa.text("UPDATE plans SET device_limit = :device_limit WHERE slug = :slug"),
+                {"slug": slug, "device_limit": min(device_limit, 3)},
+            )
+    bind.execute(
+        sa.text("UPDATE plans SET device_limit = 1 WHERE slug IN ('combo', 'combo_max')")
+    )
+
+    op.drop_constraint("ck_subscriptions_device_limit", "subscriptions", type_="check")
+    op.drop_constraint("ck_plans_device_limit", "plans", type_="check")
+    op.create_check_constraint(
+        "ck_plans_device_limit",
+        "plans",
+        "device_limit BETWEEN 0 AND 3",
+    )
+    op.create_check_constraint(
+        "ck_subscriptions_device_limit",
+        "subscriptions",
+        "device_limit BETWEEN 0 AND 3",
+    )
+
     op.alter_column("support_tickets", "telegram_id", existing_type=sa.BigInteger(), nullable=False)
     op.drop_column("support_tickets", "replied_at")
     op.drop_column("support_tickets", "admin_reply")
