@@ -28,7 +28,7 @@ def test_mock_payment_creates_subscription_and_key(billing_client: BillingClient
     subscription = billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect_plus")
 
     assert subscription.plan.slug == "connect_plus"
-    assert subscription.plan.traffic_limit_gb == 100
+    assert subscription.plan.traffic_limit_gb == 80
     assert len(subscription.devices) == 1
     assert subscription.devices[0].xray_email == "123_vpn"
 
@@ -62,7 +62,7 @@ def test_repeated_payment_updates_plan_and_keeps_key(billing_client: BillingClie
     assert subscription.plan.slug == "combo_max"
     assert len(subscription.devices) == 1
     assert subscription.devices[0].xray_uuid == device.xray_uuid
-    assert subscription.traffic_limit_gb == 200
+    assert subscription.traffic_limit_gb == 150
 
 
 def test_unknown_plan_is_rejected(billing_client: BillingClient) -> None:
