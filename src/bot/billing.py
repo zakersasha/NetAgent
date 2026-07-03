@@ -234,42 +234,8 @@ class BillingClient:
             allowed, reason = self._can_purchase_plan(session, user.id, plan)
             if not allowed:
                 raise BillingError(reason or "Оплата сейчас недоступна")
-            now = datetime.now(self.timezone)
-            expires_at = now + timedelta(days=plan.duration_days)
 
-            types_to_expire = self._conflicting_product_types(plan.product_type)
-
-            old_sub_ids = list(
-                session.scalars(
-                    select(Subscription.id)
-                    .join(Plan, Subscription.plan_id == Plan.id)
-                    .where(
-                        Subscription.user_id == user.id,
-                        Subscription.status == "active",
-                        Plan.product_type.in_(types_to_expire),
-                    )
-                ).all()
-            )
-
-            self._expire_conflicting_subscriptions(session, user.id, plan.product_type)
-
-            subscription = Subscription(
-                user_id=user.id,
-                plan_id=plan.id,
-                status="active",
-                device_limit=plan.device_limit,
-                starts_at=now,
-                expires_at=expires_at,
-            )
-            session.add(subscription)
-            session.flush()
-
-            if plan.product_type in ("vpn", "bundle") and old_sub_ids:
-                for device in session.scalars(
-                    select(Device).where(Device.subscription_id.in_(old_sub_ids))
-                ).all():
-                    device.subscription_id = subscription.id
-
+            subscription = self._activate_plan_for_user(session, user, plan)
             session.add(
                 Payment(
                     user_id=user.id,
@@ -293,10 +259,55 @@ class BillingClient:
             return self._load_subscription_view(session, telegram_id, line=line) or SubscriptionView(
                 telegram_id=telegram_id,
                 plan=self._plan_view(plan),
-                expires_at=expires_at,
-                days_left=self._days_left(expires_at),
+                expires_at=subscription.expires_at,
+                days_left=self._days_left(subscription.expires_at),
                 traffic_limit_gb=plan.traffic_limit_gb,
             )
+
+    def fulfill_payment(self, payment_id: int) -> SubscriptionView | None:
+        """Activate subscription for a succeeded YooKassa payment. Idempotent."""
+        with self._session_factory() as session:
+            payment = session.get(Payment, payment_id)
+            if not payment:
+                return None
+
+            user = session.get(User, payment.user_id)
+            plan = session.get(Plan, payment.plan_id)
+            if not user or not plan:
+                return None
+
+            if payment.status == "succeeded":
+                line = "vpn" if plan.product_type in ("vpn", "bundle") else "ai"
+                if user.telegram_id:
+                    return self._load_subscription_view(session, user.telegram_id, line=line)
+                return self._load_subscription_view_for_user(session, user.id, line=line)
+
+            if payment.status != "pending" or payment.provider != "yookassa":
+                return None
+
+            subscription = self._activate_plan_for_user(session, user, plan)
+            payment.subscription_id = subscription.id
+            payment.status = "succeeded"
+            session.commit()
+
+        if plan.product_type in ("vpn", "bundle"):
+            try:
+                if user.telegram_id:
+                    self.ensure_vpn_key(user.telegram_id)
+                else:
+                    self.ensure_vpn_key_for_user(user.id)
+            except (XrayProvisionerError, RuntimeError, NoSubscriptionError):
+                pass
+
+        with self._session_factory() as session:
+            user = session.get(User, payment.user_id)
+            plan = session.get(Plan, payment.plan_id)
+            if not user or not plan:
+                return None
+            line = "vpn" if plan.product_type in ("vpn", "bundle") else "ai"
+            if user.telegram_id:
+                return self._load_subscription_view(session, user.telegram_id, line=line)
+            return self._load_subscription_view_for_user(session, user.id, line=line)
 
     def ensure_vpn_key(self, telegram_id: int) -> DeviceView:
         """One VPN key per subscription. Returns existing key if already created."""
@@ -545,6 +556,44 @@ class BillingClient:
             return ("vpn", "bundle")
         return ("ai", "bundle")
 
+    def _activate_plan_for_user(self, session: Session, user: User, plan: Plan) -> Subscription:
+        now = datetime.now(self.timezone)
+        expires_at = now + timedelta(days=plan.duration_days)
+        types_to_expire = self._conflicting_product_types(plan.product_type)
+
+        old_sub_ids = list(
+            session.scalars(
+                select(Subscription.id)
+                .join(Plan, Subscription.plan_id == Plan.id)
+                .where(
+                    Subscription.user_id == user.id,
+                    Subscription.status == "active",
+                    Plan.product_type.in_(types_to_expire),
+                )
+            ).all()
+        )
+
+        self._expire_conflicting_subscriptions(session, user.id, plan.product_type)
+
+        subscription = Subscription(
+            user_id=user.id,
+            plan_id=plan.id,
+            status="active",
+            device_limit=plan.device_limit,
+            starts_at=now,
+            expires_at=expires_at,
+        )
+        session.add(subscription)
+        session.flush()
+
+        if plan.product_type in ("vpn", "bundle") and old_sub_ids:
+            for device in session.scalars(
+                select(Device).where(Device.subscription_id.in_(old_sub_ids))
+            ).all():
+                device.subscription_id = subscription.id
+
+        return subscription
+
     def _can_purchase_plan(self, session: Session, user_id: int, plan: Plan) -> tuple[bool, str | None]:
         types_to_check = self._conflicting_product_types(plan.product_type)
         subs = session.scalars(
@@ -673,40 +722,7 @@ class BillingClient:
             if not allowed:
                 raise BillingError(reason or "Оплата сейчас недоступна")
 
-            now = datetime.now(self.timezone)
-            expires_at = now + timedelta(days=plan.duration_days)
-            types_to_expire = self._conflicting_product_types(plan.product_type)
-
-            old_sub_ids = list(
-                session.scalars(
-                    select(Subscription.id)
-                    .join(Plan, Subscription.plan_id == Plan.id)
-                    .where(
-                        Subscription.user_id == user.id,
-                        Subscription.status == "active",
-                        Plan.product_type.in_(types_to_expire),
-                    )
-                ).all()
-            )
-            self._expire_conflicting_subscriptions(session, user.id, plan.product_type)
-
-            subscription = Subscription(
-                user_id=user.id,
-                plan_id=plan.id,
-                status="active",
-                device_limit=plan.device_limit,
-                starts_at=now,
-                expires_at=expires_at,
-            )
-            session.add(subscription)
-            session.flush()
-
-            if plan.product_type in ("vpn", "bundle") and old_sub_ids:
-                for device in session.scalars(
-                    select(Device).where(Device.subscription_id.in_(old_sub_ids))
-                ).all():
-                    device.subscription_id = subscription.id
-
+            subscription = self._activate_plan_for_user(session, user, plan)
             session.add(
                 Payment(
                     user_id=user.id,
@@ -730,8 +746,8 @@ class BillingClient:
             return self._load_subscription_view_for_user(session, user_id, line=line) or SubscriptionView(
                 telegram_id=user.telegram_id,
                 plan=self._plan_view(plan),
-                expires_at=expires_at,
-                days_left=self._days_left(expires_at),
+                expires_at=subscription.expires_at,
+                days_left=self._days_left(subscription.expires_at),
                 traffic_limit_gb=plan.traffic_limit_gb,
             )
 

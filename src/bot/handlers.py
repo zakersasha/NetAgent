@@ -16,6 +16,7 @@ from bot.keyboards import (
     devices_keyboard,
     main_menu,
     payment_keyboard,
+    payment_link_keyboard,
     payment_success_keyboard,
     share_keyboard,
     shop_keyboard,
@@ -28,6 +29,7 @@ from bot.messages import (
     device_detail_text,
     devices_text,
     no_subscription_text,
+    payment_checkout_text,
     payment_success_text,
     plan_details_text,
     regenerate_key_text,
@@ -36,9 +38,15 @@ from bot.messages import (
     welcome_text,
 )
 from bot.settings import BotSettings
+from netagent_common.payment_service import PaymentService
 
 
-def create_router(settings: BotSettings, billing: BillingClient, bot_username: str) -> Router:
+def create_router(
+    settings: BotSettings,
+    billing: BillingClient,
+    bot_username: str,
+    payment_service: PaymentService | None = None,
+) -> Router:
     router = Router(name="netagent_bot")
 
     @router.message(CommandStart())
@@ -118,9 +126,46 @@ def create_router(settings: BotSettings, billing: BillingClient, bot_username: s
         can_pay, blocked_reason = billing.can_purchase_plan(callback.from_user.id, plan_slug)
         await callback.message.edit_text(
             plan_details_text(plan, purchase_blocked=blocked_reason),
-            reply_markup=payment_keyboard(plan, can_pay=can_pay),
+            reply_markup=payment_keyboard(
+                plan,
+                can_pay=can_pay,
+                payment_provider=settings.payment_provider,
+            ),
         )
         await callback.answer()
+
+    @router.callback_query(lambda query: query.data and query.data.startswith("pay:"))
+    async def yookassa_payment(callback: CallbackQuery) -> None:
+        if not payment_service:
+            await callback.answer("Оплата недоступна", show_alert=True)
+            return
+
+        plan_slug = callback.data.split(":", 1)[1]
+        plan = billing.get_plan(plan_slug)
+        if not plan:
+            await callback.answer("Тариф не найден", show_alert=True)
+            return
+
+        await callback.answer("Создаём счёт…")
+        await callback.message.edit_text(activating_text(), reply_markup=None)
+
+        try:
+            created = await asyncio.to_thread(
+                payment_service.create_bot_payment,
+                callback.from_user.id,
+                plan_slug,
+            )
+        except BillingError as exc:
+            await callback.message.edit_text(
+                activation_error_text(str(exc)),
+                reply_markup=main_menu(),
+            )
+            return
+
+        await callback.message.edit_text(
+            payment_checkout_text(plan),
+            reply_markup=payment_link_keyboard(created.confirmation_url),
+        )
 
     @router.callback_query(lambda query: query.data and query.data.startswith("mockpay:"))
     async def mock_payment(callback: CallbackQuery) -> None:

@@ -106,12 +106,33 @@ async def checkout(request: Request, plan_slug: str):
 
 
 @router.post("/pay/{plan_slug}")
-async def mock_pay(request: Request, plan_slug: str):
+async def pay_plan(request: Request, plan_slug: str):
     user_id = _require_user(request)
     if not user_id:
         return RedirectResponse("/login", status_code=303)
 
     billing: BillingClient = request.app.state.billing
+    payment_service = request.app.state.payment_service
+    plan = billing.get_plan(plan_slug)
+
+    if payment_service:
+        try:
+            created = payment_service.create_web_payment(user_id, plan_slug)
+        except BillingError as exc:
+            plan = billing.get_plan(plan_slug)
+            return templates.TemplateResponse(
+                "checkout.html",
+                ctx(
+                    request,
+                    plan=plan,
+                    error=str(exc),
+                    can_pay=False,
+                    purchase_blocked=str(exc),
+                ),
+                status_code=400,
+            )
+        return RedirectResponse(created.confirmation_url, status_code=303)
+
     try:
         billing.activate_mock_payment_for_user(user_id, plan_slug)
     except BillingError as exc:

@@ -2,8 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from webapp.deps import STATIC_DIR, build_billing, build_stats, build_support
-from webapp.routes import admin, auth, cabinet, public
+from webapp.deps import STATIC_DIR, build_billing, build_payment, build_stats, build_support
+from webapp.routes import admin, auth, cabinet, payments, public
 from webapp.settings import get_web_settings
 
 
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
 
     app.state.settings = settings
     app.state.billing = build_billing(settings)
+    app.state.payment_service = build_payment(settings, app.state.billing)
     app.state.stats = build_stats(settings)
     app.state.support = build_support(settings)
 
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(public.router)
     app.include_router(auth.router)
     app.include_router(cabinet.router)
+    app.include_router(payments.router)
     app.include_router(admin.router)
 
     return app

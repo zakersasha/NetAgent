@@ -18,6 +18,7 @@ from bot.support_handlers import create_support_router
 from bot.support_service import SupportService
 from bot.xray_provisioner import XrayProvisioner
 from bot.settings import get_bot_settings
+from netagent_common.payment_factory import build_payment_service
 from netagent_common.openai_client import OpenAIChatClient
 from netagent_common.proxy_urls import parse_proxy_urls, ProxyRotator
 from netagent_db.session import create_session_factory
@@ -121,6 +122,15 @@ async def main() -> None:
         free_daily_limit=settings.ai_free_daily_limit,
     )
     support_service = SupportService(session_factory=session_factory)
+    payment_service = build_payment_service(
+        session_factory=session_factory,
+        billing=billing,
+        payment_provider=settings.payment_provider,
+        service_name=settings.service_name,
+        yookassa_shop_id=settings.yookassa_shop_id,
+        yookassa_secret_key=settings.yookassa_secret_key,
+        yookassa_return_url=settings.yookassa_return_url,
+    )
 
     dispatcher = Dispatcher(storage=MemoryStorage())
     bot = await create_bot_with_proxy_fallback(token, bot_proxy_rotator)
@@ -129,7 +139,7 @@ async def main() -> None:
 
     dispatcher.include_router(create_ai_router(settings, billing, ai_service))
     dispatcher.include_router(create_support_router(settings, support_service))
-    dispatcher.include_router(create_router(settings, billing, bot_username))
+    dispatcher.include_router(create_router(settings, billing, bot_username, payment_service))
 
     await setup_bot_commands(bot)
     reminder_task = asyncio.create_task(

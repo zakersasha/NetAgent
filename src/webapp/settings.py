@@ -30,6 +30,10 @@ class WebSettings(BaseSettings):
     telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     support_notify_telegram_id: int = Field(0, alias="SUPPORT_NOTIFY_TELEGRAM_ID")
     company_email: str = Field("support@netagent.ru", alias="COMPANY_EMAIL")
+    payment_provider: str = Field("mock", alias="PAYMENT_PROVIDER")
+    yookassa_shop_id: str = Field("", alias="YOOKASSA_SHOP_ID")
+    yookassa_secret_key: str = Field("", alias="YOOKASSA_SECRET_KEY")
+    yookassa_return_url: str = Field("", alias="YOOKASSA_RETURN_URL")
 
 
 @lru_cache

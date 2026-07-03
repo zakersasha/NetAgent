@@ -113,11 +113,28 @@ def ai_chat_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def payment_keyboard(plan: Plan, *, can_pay: bool = True) -> InlineKeyboardMarkup:
+def payment_keyboard(
+    plan: Plan,
+    *,
+    can_pay: bool = True,
+    payment_provider: str = "mock",
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if can_pay:
-        builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
+        if payment_provider.strip().lower() == "yookassa":
+            builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"pay:{plan.slug}")
+        else:
+            builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
     builder.button(text="💳 Другие тарифы", callback_data="shop")
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def payment_link_keyboard(confirmation_url: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="💳 Перейти к оплате", url=confirmation_url)
+    builder.button(text="📋 Моя подписка", callback_data="account")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()

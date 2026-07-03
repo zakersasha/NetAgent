@@ -236,6 +236,15 @@ def activating_text() -> str:
     return "⏳ <b>Оплачиваем…</b>\n\nОбычно 2–3 секунды."
 
 
+def payment_checkout_text(plan: Plan) -> str:
+    return (
+        f"💳 <b>Оплата тарифа «{escape(plan.name)}»</b>\n\n"
+        f"Сумма: <b>{plan.price_rub} ₽</b>\n\n"
+        "Нажмите «Перейти к оплате» — откроется защищённая страница ЮKassa.\n"
+        "После успешной оплаты подписка активируется автоматически."
+    )
+
+
 def adding_device_text() -> str:
     return "⏳ <b>Создаём профиль…</b>\n\nПодождите пару секунд."
 
