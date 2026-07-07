@@ -142,8 +142,10 @@ class BillingClient:
         xray_agent_verify_ssl: bool = False,
         xray_agent_timeout_seconds: float = 60.0,
         ai_free_daily_limit: int = 3,
+        allow_mock_payment: bool = False,
     ) -> None:
         self._session_factory = session_factory
+        self.allow_mock_payment = allow_mock_payment
         self.public_host = public_host
         self.public_port = public_port
         self.timezone = ZoneInfo(timezone)
@@ -242,9 +244,10 @@ class BillingClient:
                 raise BillingError(f"Unknown plan: {plan_slug}")
 
             user = self._get_or_create_user(session, telegram_id)
-            allowed, reason = self._can_purchase_plan(session, user.id, plan)
-            if not allowed:
-                raise BillingError(reason or "Оплата сейчас недоступна")
+            if not self.allow_mock_payment:
+                allowed, reason = self._can_purchase_plan(session, user.id, plan)
+                if not allowed:
+                    raise BillingError(reason or "Оплата сейчас недоступна")
 
             subscription = self._activate_plan_for_user(session, user, plan)
             session.add(
@@ -776,9 +779,10 @@ class BillingClient:
             if not user:
                 raise BillingError("User not found")
 
-            allowed, reason = self._can_purchase_plan(session, user.id, plan)
-            if not allowed:
-                raise BillingError(reason or "Оплата сейчас недоступна")
+            if not self.allow_mock_payment:
+                allowed, reason = self._can_purchase_plan(session, user.id, plan)
+                if not allowed:
+                    raise BillingError(reason or "Оплата сейчас недоступна")
 
             subscription = self._activate_plan_for_user(session, user, plan)
             session.add(

@@ -9,7 +9,7 @@ def _plan(slug: str) -> Plan:
     return get_plan(slug)
 
 
-def main_menu() -> InlineKeyboardMarkup:
+def main_menu(*, allow_mock_payment: bool = False) -> InlineKeyboardMarkup:
     standard = _plan("combo")
     builder = InlineKeyboardBuilder()
     builder.button(text="💬 Чат с ИИ", callback_data="ai:open")
@@ -17,6 +17,12 @@ def main_menu() -> InlineKeyboardMarkup:
         text=f"⭐ {standard.name} · {standard.price_rub} ₽",
         callback_data="plan:combo",
     )
+    if allow_mock_payment:
+        connect = _plan("connect")
+        builder.button(
+            text=f"🧪 Тест без оплаты · {connect.name}",
+            callback_data="mockpay:connect",
+        )
     builder.button(text="📋 Моя подписка", callback_data="account")
     builder.button(text="💳 Все тарифы", callback_data="shop")
     builder.button(text="🆘 Поддержка", callback_data="support")
@@ -118,13 +124,17 @@ def payment_keyboard(
     *,
     can_pay: bool = True,
     payment_provider: str = "mock",
+    allow_mock_payment: bool = False,
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    is_yookassa = payment_provider.strip().lower() == "yookassa"
     if can_pay:
-        if payment_provider.strip().lower() == "yookassa":
+        if is_yookassa:
             builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"pay:{plan.slug}")
         else:
             builder.button(text=f"Оплатить {plan.price_rub} ₽", callback_data=f"mockpay:{plan.slug}")
+    if allow_mock_payment and is_yookassa:
+        builder.button(text="🧪 Тест без оплаты", callback_data=f"mockpay:{plan.slug}")
     builder.button(text="💳 Другие тарифы", callback_data="shop")
     builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)

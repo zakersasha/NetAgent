@@ -1,239 +1,246 @@
-# Вторая VPN-нода за рубежом
+# Вторая exit-нода за рубежом (relay через Яндекс)
 
-Распределение нагрузки: новые пользователи автоматически попадают на ноду с **наименьшим числом активных ключей** (лимит `max_users` на ноду, по умолчанию 50).
+**Схема NetAgent:**
 
-| Нода | Роль | Порт VPN | Agent |
-|------|------|----------|-------|
-| `lt1` | Литва #1 (существующая) | **443** | `8443` |
-| `fi1` | Новая нода (пример) | **2087** | `8443` |
+```
+Клиент → entry (Яндекс / Россия) → exit #1 Литва (45.93.137.80:443)
+                                 → exit #2 srv1541843 (2087)
+```
 
-Прокси для Telegram/OpenAI (`45.93.137.80:3128`) **не трогаем** — он остаётся на литовском сервере.
+Клиент **никогда** не подключается к IP зарубежного exit. В VLESS-ссылке всегда **host, port и Reality-ключи entry** (Яндекс). За рубежом — только **мост** (`bridge_russia`) и выход в интернет.
+
+| Компонент | Сервер | Порт | Роль |
+|-----------|--------|------|------|
+| Entry | `51.250.112.128` (Яндекс) | `2053` (или `443` на `37.230.114.25`) | Вход для клиентов, xray-agent |
+| Exit #1 | `45.93.137.80` (Литва) | `443` | Выход, мост `9783d565-…` |
+| Exit #2 | `srv1541843` | `2087` | Выход, свой мост |
+| Прокси бота | `45.93.137.80` | `3128` | Telegram/OpenAI — **не трогаем** |
+
+Балансировка в боте: новый ключ → нода с минимумом активных устройств (`pick_vpn_node`). Разные exit-пулы — **разные inbound на entry** (разные порты, одни Reality-ключи entry).
 
 ---
 
-## 1. Подготовка нового сервера (например `NEW_IP`)
+## 1. Exit на новом сервере (`srv1541843`)
 
-Требования: Ubuntu 22.04+, открыты порты **2087/tcp** (VPN) и **8443/tcp** только с `37.230.114.25`.
+Xray на **2087** — это **только exit**. Порт **443** может быть занят Docker (`amnezia-xray`) — для NetAgent это нормально.
 
-### 1.1 Xray
-
-```bash
-ssh root@NEW_IP
-
-apt update && apt install -y unzip curl
-curl -fL -o /tmp/xray.zip \
-  https://github.com/XTLS/Xray-core/releases/download/v26.2.2/Xray-linux-64.zip
-unzip -o /tmp/xray.zip xray -d /tmp
-install -m 755 /tmp/xray /usr/local/bin/xray
-mkdir -p /usr/local/etc/xray
-```
-
-Сгенерируйте **новые** Reality-ключи (отдельно от литовской ноды):
+### 1.1 Проверка (у вас уже сделано)
 
 ```bash
-xray x25519
-# PrivateKey → в config.json
-# Password (public) → REALITY_PUBLIC_KEY / pbk в ссылках
+systemctl status xray
+ss -lntp | grep 2087
+xray run -test -c /usr/local/etc/xray/config.json   # Configuration OK
+curl -4 ifconfig.me   # сохраните IP — нужен для outbound на entry
 ```
 
-Short ID:
+Reality exit #2 (для outbound **с entry**, не для клиентских ссылок):
+
+| Параметр | Значение |
+|----------|----------|
+| PrivateKey (config) | `AB3hjI-FdE0z3CFyqJhfr8MJvpVprz2AunP8u-zjO0g` |
+| PublicKey / pbk | `WDqt_crB3vWrle5JQ4DmUm2PHuXTR9nhicu0jv3ySSY` |
+| shortId | `56f8dc4a36e55951` |
+
+### 1.2 Мост на exit (обязательно)
+
+На exit **нет пользовательских UUID** — только admin + мост с entry:
 
 ```bash
-openssl rand -hex 8
+BRIDGE2=$(xray uuid)
+echo "BRIDGE2=$BRIDGE2"
 ```
 
-### 1.2 config.json (порт **2087**)
-
-```bash
-nano /usr/local/etc/xray/config.json
-```
-
-Минимальный шаблон:
+В `/usr/local/etc/xray/config.json` в `clients` inbound на 2087:
 
 ```json
 {
-  "log": { "loglevel": "warning" },
-  "stats": {},
-  "api": {
-    "tag": "api",
-    "services": ["StatsService"]
-  },
-  "policy": {
-    "levels": {
-      "0": { "statsUserUplink": true, "statsUserDownlink": true }
-    },
-    "system": { "statsInboundUplink": true, "statsInboundDownlink": true }
-  },
-  "inbounds": [
-    {
-      "tag": "vless-reality-in",
-      "port": 2087,
-      "protocol": "vless",
-      "settings": {
-        "clients": [],
-        "decryption": "none"
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "show": false,
-          "dest": "www.wikipedia.org:443",
-          "xver": 0,
-          "serverNames": ["www.wikipedia.org"],
-          "privateKey": "ВАШ_PRIVATE_KEY",
-          "shortIds": ["ваш_short_id_16hex"]
-        }
-      },
-      "sniffing": { "enabled": true, "destOverride": ["http", "tls"] }
-    },
-    {
-      "listen": "127.0.0.1",
-      "port": 10085,
-      "protocol": "dokodemo-door",
-      "settings": { "address": "127.0.0.1" },
-      "tag": "api"
-    }
-  ],
-  "outbounds": [{ "protocol": "freedom", "tag": "direct" }],
-  "routing": {
-    "rules": [{ "type": "field", "inboundTag": ["api"], "outboundTag": "api" }]
-  }
+  "id": "BRIDGE2_UUID",
+  "flow": "xtls-rprx-vision",
+  "email": "bridge_russia_2"
 }
 ```
 
 ```bash
 xray run -test -c /usr/local/etc/xray/config.json
-systemctl enable --now xray
-ss -lntp | grep 2087
-ufw allow 2087/tcp
+systemctl restart xray
+```
+
+**xray-agent на exit для пользователей не нужен.** Agent живёт на **entry** и пишет UUID в inbound `users-in` / `users-in-fi1`.
+
+Firewall exit — **2087 только с IP entry** (не весь интернет):
+
+```bash
+ufw allow from 51.250.112.128 to any port 2087 proto tcp
+# если entry также 37.230.114.25:
+ufw allow from 37.230.114.25 to any port 2087 proto tcp
+ufw deny 2087/tcp
 ```
 
 ---
 
-## 2. xray-agent на новой ноде
+## 2. Entry (Яндекс `51.250.112.128`) — второй путь к exit #2
 
-Повторите [deploy-lithuania.md](deploy-lithuania.md) на `NEW_IP`:
+Базовый config: `configs/russia-relay.json` (сейчас один inbound `users-in:2053` → `to-lithuania`).
 
-```bash
-cd /opt && git clone <repo> netagent && cd netagent
-python3 -m venv .venv && .venv/bin/pip install -e .
+### 2.1 Второй inbound для пула fi1
 
-openssl req -x509 -newkey rsa:4096 -nodes \
-  -keyout /etc/netagent/certs/agent.key \
-  -out /etc/netagent/certs/agent.crt -days 3650 -subj "/CN=NEW_IP"
+Добавьте inbound (порт **2096** — пример, любой свободный на entry):
+
+```json
+{
+  "tag": "users-in-fi1",
+  "listen": "0.0.0.0",
+  "port": 2096,
+  "protocol": "vless",
+  "settings": { "clients": [], "decryption": "none" },
+  "streamSettings": {
+    "network": "tcp",
+    "security": "reality",
+    "realitySettings": {
+      "show": false,
+      "dest": "www.wikipedia.org:443",
+      "serverNames": ["www.wikipedia.org"],
+      "privateKey": "<privateKey entry — тот же что у users-in>",
+      "shortIds": ["6ba85179e30d4fc2"]
+    }
+  },
+  "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"] }
+}
 ```
 
-`/etc/netagent/xray-agent.env`:
+### 2.2 Outbound на srv1541843
+
+```json
+{
+  "tag": "to-fi1",
+  "protocol": "vless",
+  "settings": {
+    "vnext": [{
+      "address": "IP_srv1541843",
+      "port": 2087,
+      "users": [{
+        "id": "BRIDGE2_UUID",
+        "encryption": "none",
+        "flow": "xtls-rprx-vision",
+        "email": "bridge_russia_2"
+      }]
+    }]
+  },
+  "streamSettings": {
+    "network": "tcp",
+    "security": "reality",
+    "realitySettings": {
+      "serverName": "www.wikipedia.org",
+      "publicKey": "WDqt_crB3vWrle5JQ4DmUm2PHuXTR9nhicu0jv3ySSY",
+      "shortId": "56f8dc4a36e55951",
+      "fingerprint": "chrome"
+    }
+  }
+}
+```
+
+### 2.3 Routing
+
+```json
+"rules": [
+  { "type": "field", "inboundTag": ["users-in"], "outboundTag": "to-lithuania" },
+  { "type": "field", "inboundTag": ["users-in-fi1"], "outboundTag": "to-fi1" }
+]
+```
+
+```bash
+xray run -test -c /usr/local/etc/xray/config.json
+systemctl restart xray
+ss -lntp | grep -E '2053|2096'
+```
+
+---
+
+## 3. xray-agent на entry (не на exit)
+
+Два inbound → два agent (разные порты и `XRAY_INBOUND_TAG`):
+
+| Пул | Agent URL | `XRAY_INBOUND_TAG` | `XRAY_PUBLIC_PORT` |
+|-----|-----------|-------------------|-------------------|
+| lt1 | `https://51.250.112.128:8443` | `users-in` | `2053` |
+| fi1 | `https://51.250.112.128:8444` | `users-in-fi1` | `2096` |
+
+Общее для обоих:
 
 ```env
-XRAY_CONFIG_PATH=/usr/local/etc/xray/config.json
-XRAY_INBOUND_TAG=vless-reality-in
-XRAY_MAX_USERS=50
-XRAY_RELOAD_CMD=systemctl restart xray
-XRAY_PUBLIC_HOST=NEW_IP
-
-AGENT_API_KEY=<тот же или новый ключ — пропишите в .env Москвы>
-AGENT_ALLOWED_IPS=37.230.114.25
-AGENT_PORT=8443
-
-REALITY_PUBLIC_KEY=<pbk из xray x25519>
-REALITY_SHORT_ID=<16 hex>
+XRAY_PUBLIC_HOST=51.250.112.128
+REALITY_PUBLIC_KEY=<pbk entry inbound, не exit>
+REALITY_SHORT_ID=6ba85179e30d4fc2
 REALITY_SNI=www.wikipedia.org
+AGENT_ALLOWED_IPS=37.230.114.25
 ```
 
-Firewall:
-
-```bash
-ufw allow from 37.230.114.25 to any port 8443 proto tcp
-ufw deny 8443/tcp
-systemctl enable --now netagent-xray-agent
-```
-
-Проверка **с московского сервера**:
-
-```bash
-export XRAY_AGENT_URL=https://NEW_IP:8443
-export XRAY_AGENT_API_KEY=<key>
-python scripts/xray_cli.py health
-```
+Подробнее: [key-enforcement-guide.md](key-enforcement-guide.md), [deploy-russia-relay-walkthrough.md](deploy-russia-relay-walkthrough.md).
 
 ---
 
-## 3. Миграция БД (Москва)
+## 4. Запись в Postgres (Москва)
 
-```bash
-cd /opt/netagent
-docker compose exec bot alembic upgrade head
-```
-
-Добавьте ноду в Postgres:
+`public_host` / `public_port` / `reality_*` — **entry**, не exit.
 
 ```sql
+-- исправить lt1, если seed migration 012 записал Литву напрямую:
+UPDATE vpn_nodes SET
+  public_host = '51.250.112.128',
+  public_port = 2053,
+  agent_url = 'https://51.250.112.128:8443',
+  reality_public_key = '<pbk entry>',
+  reality_short_id = '6ba85179e30d4fc2'
+WHERE slug = 'lt1';
+
 INSERT INTO vpn_nodes (
   slug, name, public_host, public_port, agent_url,
   reality_public_key, reality_short_id, reality_sni,
   max_users, is_active, sort_order
 ) VALUES (
   'fi1',
-  'Финляндия #1',
-  'NEW_IP',
-  2087,
-  'https://NEW_IP:8443',
-  'ВАШ_REALITY_PUBLIC_KEY',
-  'ваш_short_id',
+  'Exit #2 (srv1541843)',
+  '51.250.112.128',
+  2096,
+  'https://51.250.112.128:8444',
+  '<pbk entry>',
+  '6ba85179e30d4fc2',
   'www.wikipedia.org',
   50,
   true,
   2
-);
+) ON CONFLICT (slug) DO NOTHING;
 ```
 
 ---
 
-## 4. Московский `.env`
+## 5. `.env` бота (Москва)
 
 ```env
-XRAY_PUBLIC_HOST=45.93.137.80
-XRAY_PUBLIC_PORT=443
-XRAY_AGENT_URL=https://45.93.137.80:8443
+# fallback для старых ключей без vpn_node_id
+XRAY_PUBLIC_HOST=51.250.112.128
+XRAY_PUBLIC_PORT=2053
+XRAY_AGENT_URL=https://51.250.112.128:8443
+REALITY_PUBLIC_KEY=<pbk entry>
 
 BOT_PROXY_URL=http://user:pass@45.93.137.80:3128
 ```
 
-Перезапуск:
-
-```bash
-docker compose up -d --build
-```
+Monitor опрашивает `agent_url` из `vpn_nodes` (entry agents, не exit).
 
 ---
 
-## 5. Балансировка
+## 6. Что **не** делать
 
-1. Новый профиль → нода с минимумом активных ключей.
-2. Нода с `active >= max_users` пропускается.
-3. `devices.vpn_node_id` фиксирует привязку.
-4. Monitor опрашивает все ноды из `vpn_nodes`.
-
-Старые ключи без `vpn_node_id` работают через `XRAY_PUBLIC_*` из `.env`.
+| Ошибка | Почему |
+|--------|--------|
+| `public_host = IP exit` в `vpn_nodes` | Клиент пойдёт на зарубежный IP — режется LTE |
+| xray-agent на exit для пользователей | UUID должны быть на **entry** inbound |
+| Открыть 2087 exit на весь мир | Достаточно entry → exit |
+| Менять pbk exit в VLESS-ссылке | В ссылке только pbk **entry** |
 
 ---
 
-## 6. Платежи и чеки
+## 7. Платежи и чеки
 
-| Поле | Назначение |
-|------|------------|
-| `payments.external_id` | ID ЮKassa |
-| `payments.paid_at` | время оплаты |
-| `payments.receipt_fiscal_*` | чек 54-ФЗ |
-| `payments.provider_payload` | полный JSON |
-| `payment_webhook_events` | все webhook (audit) |
-
-Админка: `/admin/payments`.
-
-```sql
-SELECT id, amount, external_id, paid_at, payment_method_title,
-       receipt_fiscal_document_number
-FROM payments WHERE status = 'succeeded' ORDER BY paid_at DESC;
-```
+См. migration 011: `payments.paid_at`, `receipt_fiscal_*`, `payment_webhook_events`. Админка: `/admin/payments`.

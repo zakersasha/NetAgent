@@ -10,6 +10,7 @@ class BotSettings(BaseSettings):
     telegram_bot_token: str = Field("", alias="TELEGRAM_BOT_TOKEN")
     bot_proxy_url: str = Field("", alias="BOT_PROXY_URL")
     payment_provider: str = Field("mock", alias="PAYMENT_PROVIDER")
+    allow_mock_payment: bool = Field(False, alias="ALLOW_MOCK_PAYMENT")
     yookassa_shop_id: str = Field("", alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str = Field("", alias="YOOKASSA_SECRET_KEY")
     yookassa_return_url: str = Field("", alias="YOOKASSA_RETURN_URL")
@@ -54,6 +55,15 @@ class BotSettings(BaseSettings):
                 "REALITY_PUBLIC_KEY — это pbk из vless://, не sid (16 hex)"
             )
         return normalized
+
+    @field_validator("allow_mock_payment", mode="before")
+    @classmethod
+    def parse_allow_mock_payment(cls, value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().strip("\\").lower() in {"1", "true", "yes", "on"}
+        return bool(value)
 
     @field_validator("xray_agent_verify_ssl", mode="before")
     @classmethod
