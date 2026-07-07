@@ -104,6 +104,73 @@ def test_add_existing_user_updates_limit(tmp_path: Path) -> None:
     assert "level" not in user
 
 
+def test_add_user_moves_email_from_other_inbound(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "inbounds": [
+                    {
+                        "tag": "users-in",
+                        "protocol": "vless",
+                        "settings": {
+                            "clients": [
+                                {
+                                    "id": "old-uuid",
+                                    "email": "544709692_vpn",
+                                    "flow": "xtls-rprx-vision",
+                                }
+                            ],
+                            "decryption": "none",
+                        },
+                    },
+                    {
+                        "tag": "users-in-fi1",
+                        "protocol": "vless",
+                        "settings": {"clients": [], "decryption": "none"},
+                    },
+                ],
+                "outbounds": [{"protocol": "freedom"}],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    fi1_settings = AgentSettings(
+        xray_config_path=config_path,
+        xray_inbound_tag="users-in-fi1",
+        xray_test_cmd="",
+        xray_reload_cmd="",
+        agent_api_key="test-key",
+        reality_public_key="test-public-key",
+    )
+    service = XrayConfigService(fi1_settings)
+    service.add_user(AddUserRequest(uuid="new-uuid", email="544709692_vpn", limit=1))
+
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    lt1_clients = saved["inbounds"][0]["settings"]["clients"]
+    fi1_clients = saved["inbounds"][1]["settings"]["clients"]
+    assert lt1_clients == []
+    assert len(fi1_clients) == 1
+    assert fi1_clients[0]["id"] == "new-uuid"
+    assert fi1_clients[0]["email"] == "544709692_vpn"
+
+
+def test_add_user_upserts_same_email_with_new_uuid(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    write_config(config_path)
+    service = XrayConfigService(settings(config_path))
+
+    service.add_user(AddUserRequest(uuid="old-uuid", email="544709692_vpn", limit=1))
+    service.add_user(AddUserRequest(uuid="new-uuid", email="544709692_vpn", limit=1))
+
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    clients = saved["inbounds"][0]["settings"]["clients"]
+    paying = [client for client in clients if client.get("email") == "544709692_vpn"]
+    assert len(paying) == 1
+    assert paying[0]["id"] == "new-uuid"
+
+
 def test_reserved_user_cannot_be_removed(tmp_path: Path) -> None:
     config_path = tmp_path / "config.json"
     write_config(config_path)

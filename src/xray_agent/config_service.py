@@ -27,10 +27,17 @@ class XrayConfigService:
     def add_user(self, request: AddUserRequest) -> UserResponse:
         with self._locked():
             config = self._read_config()
-            inbound = self._get_inbound(config)
-            clients = self._get_clients(inbound)
+            target_inbound = self._get_inbound(config)
+            target_tag = target_inbound.get("tag")
+
+            # Xray rejects duplicate emails across inbounds in one config (relay: users-in + users-in-fi1).
+            self._remove_email_from_other_inbounds(config, request.email, except_tag=target_tag)
+
+            clients = self._get_clients(target_inbound)
 
             existing = self._find_client(clients, request.uuid)
+            if not existing:
+                existing = self._find_client_by_email(clients, request.email)
             if existing:
                 if self._is_reserved(existing):
                     raise ReservedUserError("Reserved user cannot be updated")
@@ -149,6 +156,37 @@ class XrayConfigService:
 
     def _find_client(self, clients: list[dict[str, Any]], uuid: str) -> dict[str, Any] | None:
         return next((client for client in clients if client.get("id") == uuid), None)
+
+    def _find_client_by_email(self, clients: list[dict[str, Any]], email: str) -> dict[str, Any] | None:
+        return next((client for client in clients if client.get("email") == email), None)
+
+    def _vless_inbounds(self, config: dict[str, Any]) -> list[dict[str, Any]]:
+        inbounds = config.get("inbounds")
+        if not isinstance(inbounds, list):
+            return []
+        return [
+            inbound
+            for inbound in inbounds
+            if inbound.get("protocol") == "vless" and isinstance(inbound.get("settings"), dict)
+        ]
+
+    def _remove_email_from_other_inbounds(
+        self,
+        config: dict[str, Any],
+        email: str,
+        *,
+        except_tag: str | None,
+    ) -> None:
+        for inbound in self._vless_inbounds(config):
+            if except_tag and inbound.get("tag") == except_tag:
+                continue
+            clients = self._get_clients(inbound)
+            for client in list(clients):
+                if client.get("email") != email:
+                    continue
+                if self._is_reserved(client):
+                    continue
+                clients.remove(client)
 
     def _count_paying(self, clients: list[dict[str, Any]]) -> int:
         return sum(1 for client in clients if not self._is_reserved(client))
