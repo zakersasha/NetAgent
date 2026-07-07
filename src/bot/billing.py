@@ -10,8 +10,10 @@ from bot.device_presets import DevicePreset, VPN_KEY_PRESET, get_device_preset
 from bot.plans import Plan as PlanView
 from bot.xray_provisioner import XrayProvisioner, XrayProvisionerError
 from netagent_common.device_id import make_device_id
+from netagent_common.vpn_nodes import VpnNodeCapacityError, pick_vpn_node
 from netagent_common.vless_uri import build_vless_reality_uri
-from netagent_db.models import Device, Payment, Plan, Subscription, User
+from netagent_db.models import Device, Payment, Plan, Subscription, User, VpnNode
+from xray_client.client import XrayAgentClient
 
 
 class DeviceLimitExceededError(ValueError):
@@ -136,6 +138,9 @@ class BillingClient:
         reality_short_id: str = "6ba85179e30d4fc3",
         vless_flow: str = "xtls-rprx-vision",
         xray_provisioner: XrayProvisioner | None = None,
+        xray_agent_api_key: str = "",
+        xray_agent_verify_ssl: bool = False,
+        xray_agent_timeout_seconds: float = 60.0,
         ai_free_daily_limit: int = 3,
     ) -> None:
         self._session_factory = session_factory
@@ -147,6 +152,12 @@ class BillingClient:
         self.reality_short_id = reality_short_id
         self.vless_flow = vless_flow
         self._xray = xray_provisioner or XrayProvisioner(client=None, required=False)
+        self._xray_agent_api_key = xray_agent_api_key
+        self._xray_agent_verify_ssl = xray_agent_verify_ssl
+        self._xray_agent_timeout_seconds = xray_agent_timeout_seconds
+        self._xray_by_url: dict[str, XrayProvisioner] = {}
+        if self._xray.client:
+            self._xray_by_url[self._xray.client.base_url.rstrip("/")] = self._xray
         self._ai_free_daily_limit = max(1, ai_free_daily_limit)
 
     def plans(self, product_type: str | None = None) -> tuple[PlanView, ...]:
@@ -245,6 +256,9 @@ class BillingClient:
                     amount=plan.price_rub,
                     currency="RUB",
                     status="succeeded",
+                    source="bot",
+                    description=f"Mock: {plan.name}",
+                    paid_at=datetime.now(self.timezone),
                 )
             )
             session.commit()
@@ -325,6 +339,7 @@ class BillingClient:
                     Device.subscription_id == subscription.id,
                     Device.status == "active",
                 )
+                .options(joinedload(Device.vpn_node))
             )
             if existing:
                 return self._device_view(existing, preset)
@@ -347,16 +362,24 @@ class BillingClient:
                     Device.subscription_id == subscription.id,
                     Device.status == "active",
                 )
+                .options(joinedload(Device.vpn_node))
             )
+            preferred_node = existing.vpn_node if existing else None
             if existing:
+                provisioner = self._provisioner_for_node(preferred_node)
                 try:
-                    self._xray.revoke_key(uuid=existing.uuid)
+                    provisioner.revoke_key(uuid=existing.uuid)
                 except XrayProvisionerError as exc:
                     raise RuntimeError(str(exc)) from exc
                 session.delete(existing)
                 session.flush()
 
-            return self._create_vpn_device(session, subscription, preset)
+            return self._create_vpn_device(
+                session,
+                subscription,
+                preset,
+                preferred_node=preferred_node,
+            )
 
     def add_device(self, telegram_id: int, preset_slug: str = VPN_KEY_PRESET.slug) -> DeviceView:
         return self.ensure_vpn_key(telegram_id)
@@ -366,19 +389,28 @@ class BillingClient:
         session: Session,
         subscription: Subscription,
         preset: DevicePreset,
+        *,
+        preferred_node: VpnNode | None = None,
     ) -> DeviceView:
         user = session.get(User, subscription.user_id)
         if not user:
             raise BillingError("User not found")
+        try:
+            node = preferred_node or pick_vpn_node(session)
+        except VpnNodeCapacityError as exc:
+            raise BillingError(str(exc)) from exc
+
         xray_uuid = str(uuid4())
         xray_email = self._vpn_email(user, preset.email_suffix)
-        connection_uri = self._build_connection_uri(xray_uuid, preset.title)
+        connection_uri = self._build_connection_uri(xray_uuid, preset.title, node)
 
-        self._xray.provision_key(email=xray_email, uuid=xray_uuid)
+        provisioner = self._provisioner_for_node(node)
+        provisioner.provision_key(email=xray_email, uuid=xray_uuid)
 
         device = Device(
             user_id=subscription.user_id,
             subscription_id=subscription.id,
+            vpn_node_id=node.id if node else None,
             uuid=xray_uuid,
             device_id=make_device_id(subscription.user_id, preset.slug, xray_uuid),
             device_name=preset.title,
@@ -391,7 +423,7 @@ class BillingClient:
             session.commit()
         except Exception:
             session.rollback()
-            self._xray.rollback_key(uuid=xray_uuid)
+            provisioner.rollback_key(uuid=xray_uuid)
             raise
         session.refresh(device)
 
@@ -414,9 +446,12 @@ class BillingClient:
             display_name=device.device_name,
             xray_uuid=device.uuid,
             xray_email=device.xray_email,
-            connection_uri=self._build_connection_uri(device.uuid, device.device_name),
+            connection_uri=self._connection_uri_for_device(device),
             created_at=device.created_at,
         )
+
+    def _connection_uri_for_device(self, device: Device) -> str:
+        return self._build_connection_uri(device.uuid, device.device_name, device.vpn_node)
 
     def remove_device(self, telegram_id: int, device_id: int) -> None:
         with self._session_factory() as session:
@@ -424,13 +459,15 @@ class BillingClient:
                 select(Device)
                 .join(User, Device.user_id == User.id)
                 .where(Device.id == device_id, User.telegram_id == telegram_id)
+                .options(joinedload(Device.vpn_node))
             )
             if not device:
                 raise DeviceNotFoundError("Устройство не найдено.")
 
             if device.status == "active":
+                provisioner = self._provisioner_for_node(device.vpn_node)
                 try:
-                    self._xray.revoke_key(uuid=device.uuid)
+                    provisioner.revoke_key(uuid=device.uuid)
                 except XrayProvisionerError as exc:
                     raise RuntimeError(str(exc)) from exc
 
@@ -533,6 +570,7 @@ class BillingClient:
                 Device.subscription_id == subscription.id,
                 Device.status == "active",
             )
+            .options(joinedload(Device.vpn_node))
             .order_by(Device.created_at)
         ).all()
         return tuple(
@@ -543,7 +581,7 @@ class BillingClient:
                 display_name=device.device_name,
                 xray_uuid=device.uuid,
                 xray_email=device.xray_email,
-                connection_uri=self._build_connection_uri(device.uuid, device.device_name),
+                connection_uri=self._connection_uri_for_device(device),
                 created_at=device.created_at,
             )
             for device in devices
@@ -665,19 +703,39 @@ class BillingClient:
             traffic_limit_gb=plan.traffic_limit_gb,
         )
 
-    def _build_connection_uri(self, uuid: str, label: str) -> str:
-        if not self.reality_public_key:
-            raise RuntimeError("Задайте REALITY_PUBLIC_KEY в .env")
+    def _build_connection_uri(
+        self,
+        uuid: str,
+        label: str,
+        node: VpnNode | None = None,
+    ) -> str:
+        public_key = node.reality_public_key if node else self.reality_public_key
+        if not public_key:
+            raise RuntimeError("Задайте REALITY_PUBLIC_KEY в .env или в vpn_nodes")
         return build_vless_reality_uri(
             uuid,
-            self.public_host,
+            node.public_host if node else self.public_host,
             label,
-            port=self.public_port,
-            public_key=self.reality_public_key,
-            short_id=self.reality_short_id,
-            sni=self.reality_sni,
+            port=node.public_port if node else self.public_port,
+            public_key=public_key,
+            short_id=node.reality_short_id if node else self.reality_short_id,
+            sni=node.reality_sni if node else self.reality_sni,
             flow=self.vless_flow,
         )
+
+    def _provisioner_for_node(self, node: VpnNode | None) -> XrayProvisioner:
+        if node is None:
+            return self._xray
+        agent_url = node.agent_url.rstrip("/")
+        if agent_url not in self._xray_by_url:
+            client = XrayAgentClient(
+                base_url=agent_url,
+                api_key=self._xray_agent_api_key,
+                verify_ssl=self._xray_agent_verify_ssl,
+                timeout_seconds=self._xray_agent_timeout_seconds,
+            )
+            self._xray_by_url[agent_url] = XrayProvisioner(client=client, required=True)
+        return self._xray_by_url[agent_url]
 
     # --- Web (user_id / email) ---
 
@@ -732,6 +790,9 @@ class BillingClient:
                     amount=plan.price_rub,
                     currency="RUB",
                     status="succeeded",
+                    source="web",
+                    description=f"Mock: {plan.name}",
+                    paid_at=datetime.now(self.timezone),
                 )
             )
             session.commit()
@@ -758,11 +819,13 @@ class BillingClient:
             if not subscription:
                 raise NoSubscriptionError("Сначала выберите тариф.")
             existing = session.scalar(
-                select(Device).where(
+                select(Device)
+                .where(
                     Device.user_id == user_id,
                     Device.subscription_id == subscription.id,
                     Device.status == "active",
                 )
+                .options(joinedload(Device.vpn_node))
             )
             if existing:
                 return self._device_view(existing, preset)
@@ -775,20 +838,29 @@ class BillingClient:
             if not subscription:
                 raise NoSubscriptionError("Сначала выберите тариф.")
             existing = session.scalar(
-                select(Device).where(
+                select(Device)
+                .where(
                     Device.user_id == user_id,
                     Device.subscription_id == subscription.id,
                     Device.status == "active",
                 )
+                .options(joinedload(Device.vpn_node))
             )
+            preferred_node = existing.vpn_node if existing else None
             if existing:
+                provisioner = self._provisioner_for_node(preferred_node)
                 try:
-                    self._xray.revoke_key(uuid=existing.uuid)
+                    provisioner.revoke_key(uuid=existing.uuid)
                 except XrayProvisionerError as exc:
                     raise RuntimeError(str(exc)) from exc
                 session.delete(existing)
                 session.flush()
-            return self._create_vpn_device(session, subscription, preset)
+            return self._create_vpn_device(
+                session,
+                subscription,
+                preset,
+                preferred_node=preferred_node,
+            )
 
     def _vpn_email(self, user: User, suffix: str) -> str:
         if user.telegram_id:
@@ -854,6 +926,7 @@ class BillingClient:
                 Device.subscription_id == subscription.id,
                 Device.status == "active",
             )
+            .options(joinedload(Device.vpn_node))
             .order_by(Device.created_at)
         ).all()
         return tuple(
@@ -864,7 +937,7 @@ class BillingClient:
                 display_name=device.device_name,
                 xray_uuid=device.uuid,
                 xray_email=device.xray_email,
-                connection_uri=self._build_connection_uri(device.uuid, device.device_name),
+                connection_uri=self._connection_uri_for_device(device),
                 created_at=device.created_at,
             )
             for device in devices

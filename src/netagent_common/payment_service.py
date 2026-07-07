@@ -1,13 +1,16 @@
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from bot.billing import BillingClient, BillingError, SubscriptionView
+from netagent_common.yookassa_audit import extract_yookassa_payment_details
 from netagent_common.yookassa_client import YooKassaClient, YooKassaError
-from netagent_db.models import Payment, Plan, User
+from netagent_db.models import Payment, PaymentWebhookEvent, Plan, User
 
 
 @dataclass(frozen=True)
@@ -61,21 +64,23 @@ class PaymentService:
             return self._create_yookassa_payment(session, user, plan, source="web")
 
     def handle_yookassa_webhook(self, payload: dict) -> FulfillResult | None:
-        event = payload.get("event")
+        event = payload.get("event") or "unknown"
         payment_obj = payload.get("object") or {}
         external_id = payment_obj.get("id")
         if not external_id:
             return None
 
+        metadata = payment_obj.get("metadata") or {}
+        payment_id = int(metadata.get("payment_id") or 0)
+        self._log_webhook_event(payment_id or None, external_id, event, payload)
+
         if event == "payment.canceled":
-            self._mark_canceled(external_id)
+            self._mark_canceled(external_id, payment_obj)
             return None
 
         if event != "payment.succeeded":
             return None
 
-        metadata = payment_obj.get("metadata") or {}
-        payment_id = int(metadata.get("payment_id") or 0)
         if payment_id:
             return self._fulfill(payment_id, external_id, payment_obj)
 
@@ -96,6 +101,8 @@ class PaymentService:
             amount=plan.price_rub,
             currency="RUB",
             status="pending",
+            source=source,
+            description=f"Подписка {self._service_name}: {plan.name}",
         )
         session.add(payment)
         session.flush()
@@ -132,6 +139,7 @@ class PaymentService:
 
         payment.external_id = external_id
         payment.confirmation_url = confirmation_url
+        payment.provider_payload = json.dumps(yk_payment, ensure_ascii=False, sort_keys=True)
         session.commit()
 
         return CreatedPayment(
@@ -161,6 +169,7 @@ class PaymentService:
             if not plan or not self._amount_matches(plan, payment_obj):
                 return None
 
+            self._apply_payment_details(payment, payment_obj)
             payment.external_id = external_id
             session.commit()
 
@@ -181,12 +190,54 @@ class PaymentService:
                 return None
         return self._fulfill(payment.id, external_id, payment_obj)
 
-    def _mark_canceled(self, external_id: str) -> None:
+    def _mark_canceled(self, external_id: str, payment_obj: dict | None = None) -> None:
         with self._session_factory() as session:
             payment = session.scalar(select(Payment).where(Payment.external_id == external_id))
-            if payment and payment.status == "pending":
+            if not payment:
+                return
+            if payment_obj:
+                self._apply_payment_details(payment, payment_obj)
+            if payment.status == "pending":
                 payment.status = "canceled"
-                session.commit()
+            session.commit()
+
+    def _log_webhook_event(
+        self,
+        payment_id: int | None,
+        external_id: str | None,
+        event_type: str,
+        payload: dict,
+    ) -> None:
+        with self._session_factory() as session:
+            if not payment_id and external_id:
+                payment = session.scalar(select(Payment).where(Payment.external_id == external_id))
+                payment_id = payment.id if payment else None
+            session.add(
+                PaymentWebhookEvent(
+                    payment_id=payment_id,
+                    external_id=external_id,
+                    event_type=event_type,
+                    payload_json=json.dumps(payload, ensure_ascii=False, sort_keys=True),
+                )
+            )
+            session.commit()
+
+    @staticmethod
+    def _apply_payment_details(payment: Payment, payment_obj: dict) -> None:
+        details = extract_yookassa_payment_details(payment_obj)
+        if details.get("description"):
+            payment.description = details["description"]
+        if details.get("paid_at"):
+            payment.paid_at = details["paid_at"]
+        payment.payment_method_type = details.get("payment_method_type")
+        payment.payment_method_title = details.get("payment_method_title")
+        payment.receipt_fiscal_document_number = details.get("receipt_fiscal_document_number")
+        payment.receipt_fiscal_storage_number = details.get("receipt_fiscal_storage_number")
+        payment.receipt_fiscal_attribute = details.get("receipt_fiscal_attribute")
+        if details.get("receipt_registered_at"):
+            payment.receipt_registered_at = details["receipt_registered_at"]
+        if details.get("provider_payload"):
+            payment.provider_payload = details["provider_payload"]
 
     def _build_fulfill_result(
         self,

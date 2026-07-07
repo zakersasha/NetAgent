@@ -4,12 +4,15 @@ from datetime import datetime
 from enum import Enum
 from zoneinfo import ZoneInfo
 
+from collections.abc import Callable
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from device_monitor.geo import GeoCountryResolver
 from netagent_common.traffic import bytes_to_gb
-from netagent_db.models import Device, Plan, Subscription
+from netagent_common.vpn_nodes import list_active_vpn_nodes
+from netagent_db.models import Device, Plan, Subscription, VpnNode
 from xray_agent.models import OnlineIpEntry, UserOnlineStats
 from xray_client.client import XrayAgentClient, XrayAgentClientError
 
@@ -72,27 +75,30 @@ class DeviceMonitorService:
     def __init__(
         self,
         session_factory,
-        xray_agent: XrayAgentClient,
+        get_agent: Callable[[str], XrayAgentClient],
+        default_agent: XrayAgentClient | None,
         geo: GeoCountryResolver,
         max_online_ips: int = 1,
         timezone: str = "Europe/Moscow",
     ) -> None:
         self._session_factory = session_factory
-        self._xray_agent = xray_agent
+        self._get_agent = get_agent
+        self._default_agent = default_agent
         self._geo = geo
         self._max_online_ips = max_online_ips
         self._timezone = ZoneInfo(timezone)
 
     def poll_once(self) -> int:
-        online_stats = self._fetch_online_stats()
-        stats_by_email = {item.email: item for item in online_stats}
-        suspended = 0
-
         with self._session_factory() as session:
+            online_stats = self._fetch_online_stats(session)
+            stats_by_email = {item.email: item for item in online_stats}
+            suspended = 0
+
             devices = session.scalars(
                 select(Device)
                 .where(Device.status == "active")
                 .options(joinedload(Device.subscription).joinedload(Subscription.plan))
+                .options(joinedload(Device.vpn_node))
             ).all()
 
             for device in devices:
@@ -139,8 +145,9 @@ class DeviceMonitorService:
         subscription: Subscription,
         plan: Plan,
     ) -> Violation | None:
+        agent = self._agent_for_device(device)
         try:
-            current = self._xray_agent.user_traffic_bytes(device.xray_email)
+            current = agent.user_traffic_bytes(device.xray_email)
         except XrayAgentClientError as exc:
             logger.warning("Traffic stats unavailable for %s: %s", device.xray_email, exc)
             return None
@@ -160,25 +167,44 @@ class DeviceMonitorService:
             return Violation(type=ViolationType.TRAFFIC_EXCEEDED, detail=detail)
         return None
 
-    def _fetch_online_stats(self) -> list[UserOnlineStats]:
-        raw = self._xray_agent.users_online_stats()
+    def _fetch_online_stats(self, session: Session) -> list[UserOnlineStats]:
+        agent_urls: set[str] = set()
+        for node in list_active_vpn_nodes(session):
+            agent_urls.add(node.agent_url.rstrip("/"))
+        if self._default_agent:
+            agent_urls.add(self._default_agent.base_url.rstrip("/"))
+
         result: list[UserOnlineStats] = []
-        for item in raw:
-            ips: list[OnlineIpEntry] = []
-            for ip_item in item.get("ips", []):
-                if not isinstance(ip_item, dict):
-                    continue
-                ip = str(ip_item.get("ip", "")).strip()
-                if not ip:
-                    continue
-                last_seen = int(ip_item.get("last_seen", ip_item.get("lastSeen", 0)) or 0)
-                ips.append(OnlineIpEntry(ip=ip, last_seen=last_seen))
-            result.append(UserOnlineStats(email=str(item.get("email", "")), ips=ips))
+        for agent_url in agent_urls:
+            agent = self._get_agent(agent_url)
+            try:
+                raw = agent.users_online_stats()
+            except XrayAgentClientError as exc:
+                logger.warning("Online stats unavailable for %s: %s", agent_url, exc)
+                continue
+            for item in raw:
+                ips: list[OnlineIpEntry] = []
+                for ip_item in item.get("ips", []):
+                    if not isinstance(ip_item, dict):
+                        continue
+                    ip = str(ip_item.get("ip", "")).strip()
+                    if not ip:
+                        continue
+                    last_seen = int(ip_item.get("last_seen", ip_item.get("lastSeen", 0)) or 0)
+                    ips.append(OnlineIpEntry(ip=ip, last_seen=last_seen))
+                result.append(UserOnlineStats(email=str(item.get("email", "")), ips=ips))
         return result
+
+    def _agent_for_device(self, device: Device) -> XrayAgentClient:
+        if device.vpn_node and device.vpn_node.agent_url:
+            return self._get_agent(device.vpn_node.agent_url)
+        if self._default_agent:
+            return self._default_agent
+        raise XrayAgentClientError("Xray agent is not configured for device")
 
     def _suspend_device(self, session: Session, device: Device, reason: str) -> None:
         try:
-            self._xray_agent.remove_user(device.uuid)
+            self._agent_for_device(device).remove_user(device.uuid)
         except XrayAgentClientError as exc:
             logger.error("Xray remove_user failed for %s: %s", device.uuid, exc)
 

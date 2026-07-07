@@ -63,6 +63,11 @@ class PaymentRow:
     amount: float
     status: str
     provider: str
+    source: str | None
+    external_id: str | None
+    paid_at: datetime | None
+    payment_method_title: str | None
+    receipt_fiscal_document_number: str | None
     created_at: datetime
 
 
@@ -164,6 +169,11 @@ class AdminStatsService:
                         amount=float(payment.amount or 0),
                         status=payment.status,
                         provider=payment.provider,
+                        source=payment.source,
+                        external_id=payment.external_id,
+                        paid_at=payment.paid_at,
+                        payment_method_title=payment.payment_method_title,
+                        receipt_fiscal_document_number=payment.receipt_fiscal_document_number,
                         created_at=payment.created_at,
                     )
                 )

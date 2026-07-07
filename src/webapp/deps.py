@@ -46,6 +46,9 @@ def build_billing(settings: WebSettings) -> BillingClient:
         reality_short_id=settings.reality_short_id,
         vless_flow=settings.vless_flow,
         xray_provisioner=provisioner,
+        xray_agent_api_key=settings.xray_agent_api_key,
+        xray_agent_verify_ssl=settings.xray_agent_verify_ssl,
+        xray_agent_timeout_seconds=settings.xray_agent_timeout_seconds,
         ai_free_daily_limit=settings.ai_free_daily_limit,
     )
 

@@ -2,9 +2,23 @@
 {% block title %}Платежи{% endblock %}
 {% block content %}
 <h1>Платежи</h1>
-<div class="card">
+<p style="color:var(--muted);margin-bottom:1rem">Все транзакции и данные для учёта. Полный JSON webhook — в таблице <code>payment_webhook_events</code>.</p>
+<div class="card" style="overflow-x:auto">
   <table>
-    <thead><tr><th>ID</th><th>Email</th><th>Тариф</th><th>Сумма</th><th>Провайдер</th><th>Статус</th><th>Дата</th></tr></thead>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Email</th>
+        <th>Тариф</th>
+        <th>Сумма</th>
+        <th>Источник</th>
+        <th>ЮKassa ID</th>
+        <th>Способ</th>
+        <th>Чек ФД</th>
+        <th>Статус</th>
+        <th>Оплачен</th>
+      </tr>
+    </thead>
     <tbody>
       {% for p in payments %}
       <tr>
@@ -12,9 +26,12 @@
         <td>{{ p.user_email or '—' }}</td>
         <td>{{ p.plan_name }}</td>
         <td>{{ p.amount|round(0) }} ₽</td>
-        <td>{{ p.provider }}</td>
+        <td>{{ p.source or '—' }}</td>
+        <td style="font-size:0.82rem">{{ p.external_id or '—' }}</td>
+        <td>{{ p.payment_method_title or '—' }}</td>
+        <td>{{ p.receipt_fiscal_document_number or '—' }}</td>
         <td>{{ p.status }}</td>
-        <td>{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td>{% if p.paid_at %}{{ p.paid_at.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

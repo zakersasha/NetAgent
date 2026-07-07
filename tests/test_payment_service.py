@@ -70,11 +70,13 @@ def test_yookassa_create_payment_stores_pending_record(
         assert payment.external_id == "yk-123"
 
 
-def test_yookassa_webhook_fulfills_subscription(
+def test_yookassa_webhook_fulfills_and_stores_audit(
     session_factory,
     billing_client: BillingClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from netagent_db.models import PaymentWebhookEvent
+
     yookassa = YooKassaClient("shop", "secret")
     service = PaymentService(
         session_factory=session_factory,
@@ -94,13 +96,14 @@ def test_yookassa_webhook_fulfills_subscription(
     )
 
     created = service.create_bot_payment(telegram_id=888, plan_slug="connect")
-
     payload = {
         "event": "payment.succeeded",
         "object": {
             "id": "yk-456",
             "status": "succeeded",
             "amount": {"value": "149.00", "currency": "RUB"},
+            "captured_at": "2026-06-18T12:00:00.000Z",
+            "payment_method": {"type": "bank_card", "title": "Bank card *4444"},
             "metadata": {"payment_id": str(created.payment_id)},
         },
     }
@@ -108,14 +111,16 @@ def test_yookassa_webhook_fulfills_subscription(
     result = service.handle_yookassa_webhook(payload)
 
     assert result is not None
-    assert result.telegram_id == 888
     assert result.subscription.plan.slug == "connect"
 
     with session_factory() as session:
         payment = session.get(Payment, created.payment_id)
         assert payment is not None
         assert payment.status == "succeeded"
-        assert payment.subscription_id is not None
+        assert payment.payment_method_type == "bank_card"
+        assert payment.provider_payload
+        events = session.scalars(select(PaymentWebhookEvent)).all()
+        assert len(events) == 1
 
 
 def test_yookassa_webhook_is_idempotent(

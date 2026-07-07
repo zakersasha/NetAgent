@@ -78,6 +78,7 @@ class Device(Base):
     subscription_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("subscriptions.id"), nullable=False
     )
+    vpn_node_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("vpn_nodes.id"))
     uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     device_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     device_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -94,6 +95,7 @@ class Device(Base):
 
     user: Mapped["User"] = relationship(back_populates="devices")
     subscription: Mapped["Subscription"] = relationship(back_populates="devices")
+    vpn_node: Mapped["VpnNode | None"] = relationship(back_populates="devices")
 
 
 class Payment(Base):
@@ -109,9 +111,56 @@ class Payment(Base):
     currency: Mapped[str] = mapped_column(String(3), default="RUB", server_default="RUB")
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     confirmation_url: Mapped[str | None] = mapped_column(String(512))
+    source: Mapped[str | None] = mapped_column(String(20))
+    description: Mapped[str | None] = mapped_column(String(255))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    payment_method_type: Mapped[str | None] = mapped_column(String(50))
+    payment_method_title: Mapped[str | None] = mapped_column(String(255))
+    receipt_fiscal_document_number: Mapped[str | None] = mapped_column(String(64))
+    receipt_fiscal_storage_number: Mapped[str | None] = mapped_column(String(64))
+    receipt_fiscal_attribute: Mapped[str | None] = mapped_column(String(64))
+    receipt_registered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider_payload: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class PaymentWebhookEvent(Base):
+    __tablename__ = "payment_webhook_events"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    payment_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("payments.id"))
+    external_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class VpnNode(Base):
+    __tablename__ = "vpn_nodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    slug: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    public_host: Mapped[str] = mapped_column(String(255), nullable=False)
+    public_port: Mapped[int] = mapped_column(Integer, nullable=False, default=443, server_default="443")
+    agent_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    reality_public_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    reality_short_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    reality_sni: Mapped[str] = mapped_column(
+        String(255), default="www.wikipedia.org", server_default="www.wikipedia.org"
+    )
+    max_users: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    devices: Mapped[list["Device"]] = relationship(back_populates="vpn_node")
 
 
 class AiDailyUsage(Base):

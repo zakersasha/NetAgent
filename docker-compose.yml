@@ -63,5 +63,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  db-backup:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backup
+    env_file:
+      - .env
+    environment:
+      BACKUP_POSTGRES_HOST: postgres
+      BACKUP_POSTGRES_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
