@@ -47,7 +47,7 @@ def create_ai_router(
     @router.message(Command("stop"), StateFilter(AiChatStates.active))
     async def cmd_stop(message: Message, state: FSMContext) -> None:
         await state.clear()
-        await message.answer("Чат завершён.", reply_markup=main_menu())
+        await message.answer("Чат завершён.", reply_markup=main_menu(allow_mock_payment=settings.allow_mock_payment))
 
     @router.callback_query(lambda query: query.data == "ai:open")
     async def open_chat(callback: CallbackQuery, state: FSMContext) -> None:
@@ -63,7 +63,7 @@ def create_ai_router(
     @router.callback_query(lambda query: query.data == "ai:leave")
     async def leave_chat(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        await callback.message.edit_text("Чат завершён.", reply_markup=main_menu())
+        await callback.message.edit_text("Чат завершён.", reply_markup=main_menu(allow_mock_payment=settings.allow_mock_payment))
         await callback.answer()
 
     @router.message(StateFilter(AiChatStates.active))

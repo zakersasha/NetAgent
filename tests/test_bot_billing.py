@@ -106,6 +106,24 @@ def test_early_renewal_allowed_within_5_days(billing_client: BillingClient) -> N
     assert subscription.plan.slug == "connect_plus"
 
 
+def test_allow_mock_payment_bypasses_early_renewal() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    with session_factory() as session:
+        seed_plans(session)
+    billing = BillingClient(
+        session_factory=session_factory,
+        public_host="45.93.137.80",
+        reality_public_key=PUBLIC_KEY,
+        reality_short_id="6ba85179e30d4fc3",
+        allow_mock_payment=True,
+    )
+    billing.activate_mock_payment(telegram_id=999, plan_slug="connect")
+    subscription = billing.activate_mock_payment(telegram_id=999, plan_slug="connect_plus")
+    assert subscription.plan.slug == "connect_plus"
+
+
 def test_unknown_plan_is_rejected(billing_client: BillingClient) -> None:
     with pytest.raises(Exception, match="Unknown plan"):
         billing_client.activate_mock_payment(telegram_id=123, plan_slug="unknown")

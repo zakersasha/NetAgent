@@ -49,10 +49,13 @@ def create_router(
 ) -> Router:
     router = Router(name="netagent_bot")
 
+    def menu_markup():
+        return main_menu(allow_mock_payment=settings.allow_mock_payment)
+
     @router.message(CommandStart())
     async def start(message: Message, state: FSMContext) -> None:
         await state.clear()
-        await message.answer(welcome_text(settings.service_name), reply_markup=main_menu())
+        await message.answer(welcome_text(settings.service_name), reply_markup=menu_markup())
 
     @router.message(Command("plans"))
     async def cmd_plans(message: Message) -> None:
@@ -88,7 +91,7 @@ def create_router(
         await state.clear()
         await callback.message.edit_text(
             welcome_text(settings.service_name),
-            reply_markup=main_menu(),
+            reply_markup=menu_markup(),
         )
         await callback.answer()
 
@@ -130,6 +133,7 @@ def create_router(
                 plan,
                 can_pay=can_pay,
                 payment_provider=settings.payment_provider,
+                allow_mock_payment=settings.allow_mock_payment,
             ),
         )
         await callback.answer()
@@ -158,7 +162,7 @@ def create_router(
         except BillingError as exc:
             await callback.message.edit_text(
                 activation_error_text(str(exc)),
-                reply_markup=main_menu(),
+                reply_markup=menu_markup(),
             )
             return
 
@@ -182,7 +186,7 @@ def create_router(
         except (BillingError, RuntimeError) as exc:
             await callback.message.edit_text(
                 activation_error_text(str(exc)),
-                reply_markup=main_menu(),
+                reply_markup=menu_markup(),
             )
             return
 
@@ -216,7 +220,7 @@ def create_router(
         except (NoSubscriptionError, RuntimeError) as exc:
             await callback.message.edit_text(
                 activation_error_text(str(exc)),
-                reply_markup=main_menu(),
+                reply_markup=menu_markup(),
             )
             return
         status = billing.get_account_status(callback.from_user.id)
@@ -234,7 +238,7 @@ def create_router(
         except (NoSubscriptionError, RuntimeError) as exc:
             await callback.message.edit_text(
                 activation_error_text(str(exc)),
-                reply_markup=main_menu(),
+                reply_markup=menu_markup(),
             )
             return
         await callback.message.edit_text(

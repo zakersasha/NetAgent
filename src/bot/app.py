@@ -111,6 +111,7 @@ async def main() -> None:
         xray_agent_verify_ssl=settings.xray_agent_verify_ssl,
         xray_agent_timeout_seconds=settings.xray_agent_timeout_seconds,
         ai_free_daily_limit=settings.ai_free_daily_limit,
+        allow_mock_payment=settings.allow_mock_payment,
     )
     openai_client = OpenAIChatClient(
         api_keys=openai_keys,

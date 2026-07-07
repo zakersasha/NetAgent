@@ -98,6 +98,6 @@ def create_support_router(settings: BotSettings, support_service: SupportService
 
         await _notify_admin(bot, ticket.id, message.from_user.id, category, message.text)
         await state.clear()
-        await message.answer(support_received_text(), reply_markup=main_menu())
+        await message.answer(support_received_text(), reply_markup=main_menu(allow_mock_payment=settings.allow_mock_payment))
 
     return router
