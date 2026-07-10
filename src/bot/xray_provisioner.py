@@ -29,19 +29,21 @@ class XrayProvisioner:
         except XrayAgentClientError as exc:
             raise XrayProvisionerError(f"Xray Agent недоступен: {exc}") from exc
 
-    def provision_key(self, *, email: str, uuid: str) -> None:
-        """Register a new client in Xray (one key = one device slot)."""
+    def provision_key(self, *, email: str, uuid: str) -> str | None:
+        """Register a new client in Xray. Returns connection_uri from agent if available."""
         if not self.client:
             if self.required:
                 raise XrayProvisionerError(
                     "Xray Agent не настроен. Задайте XRAY_AGENT_URL и XRAY_AGENT_API_KEY в .env."
                 )
             logger.warning("Xray Agent не настроен — ключ %s создан только в БД", email)
-            return
+            return None
         try:
-            self.client.add_user(email=email, uuid=uuid, limit=1)
+            result = self.client.add_user(email=email, uuid=uuid, limit=1)
         except XrayAgentClientError as exc:
             raise XrayProvisionerError(f"Не удалось добавить ключ в Xray: {exc}") from exc
+        uri = result.get("connection_uri")
+        return str(uri) if uri else None
 
     def revoke_key(self, *, uuid: str) -> None:
         """Remove client from Xray config."""

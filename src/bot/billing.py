@@ -461,7 +461,7 @@ class BillingClient:
         device.suspended_at = None
         device.suspended_reason = None
         provisioner = self._provisioner_for_node(device.vpn_node)
-        provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
+        agent_uri = provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
         try:
             session.commit()
         except Exception:
@@ -472,7 +472,19 @@ class BillingClient:
                 pass
             raise
         session.refresh(device)
-        return self._device_view(device, preset)
+        view = self._device_view(device, preset)
+        if agent_uri:
+            return DeviceView(
+                id=view.id,
+                slug=view.slug,
+                emoji=view.emoji,
+                display_name=view.display_name,
+                xray_uuid=view.xray_uuid,
+                xray_email=view.xray_email,
+                connection_uri=agent_uri,
+                created_at=view.created_at,
+            )
+        return view
 
     def _create_vpn_device(
         self,
@@ -492,10 +504,9 @@ class BillingClient:
 
         xray_uuid = str(uuid4())
         xray_email = self._vpn_email(user, preset.email_suffix)
-        connection_uri = self._build_connection_uri(xray_uuid, preset.title, node)
-
         provisioner = self._provisioner_for_node(node)
-        provisioner.provision_key(email=xray_email, uuid=xray_uuid)
+        agent_uri = provisioner.provision_key(email=xray_email, uuid=xray_uuid)
+        connection_uri = agent_uri or self._build_connection_uri(xray_uuid, preset.title, node)
 
         device = Device(
             user_id=subscription.user_id,
@@ -574,6 +585,7 @@ class BillingClient:
                     User.telegram_id == telegram_id,
                     Device.status == "active",
                 )
+                .options(joinedload(Device.vpn_node))
             )
             if not device:
                 return None
@@ -585,7 +597,7 @@ class BillingClient:
                 display_name=device.device_name,
                 xray_uuid=device.uuid,
                 xray_email=device.xray_email,
-                connection_uri=self._build_connection_uri(device.uuid, device.device_name),
+                connection_uri=self._connection_uri_for_device(device),
                 created_at=device.created_at,
             )
 

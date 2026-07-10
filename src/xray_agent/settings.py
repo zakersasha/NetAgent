@@ -18,6 +18,7 @@ class AgentSettings(BaseSettings):
     xray_reload_cmd: str = "systemctl restart xray"
     xray_test_cmd: str = "xray run -test -c {config_path}"
     xray_public_host: str = "45.93.137.80"
+    xray_public_port: int = 443
     xray_bin: str = "xray"
     xray_api_server: str = "127.0.0.1:10085"
 

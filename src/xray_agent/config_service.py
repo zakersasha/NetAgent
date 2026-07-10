@@ -105,6 +105,7 @@ class XrayConfigService:
             uuid,
             self.settings.xray_public_host,
             label,
+            port=self.settings.xray_public_port,
             public_key=public_key,
             short_id=self.settings.reality_short_id,
             sni=self.settings.reality_sni,

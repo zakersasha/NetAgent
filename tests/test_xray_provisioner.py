@@ -21,9 +21,11 @@ def test_provision_without_client_required_raises() -> None:
 
 def test_provision_calls_add_user() -> None:
     client = MagicMock()
+    client.add_user.return_value = {"connection_uri": "vless://abc@host:2053?pbk=entry"}
     provisioner = XrayProvisioner(client=client, required=True)
-    provisioner.provision_key(email="99_phone", uuid="abc")
+    uri = provisioner.provision_key(email="99_phone", uuid="abc")
     client.add_user.assert_called_once_with(email="99_phone", uuid="abc", limit=1)
+    assert uri == "vless://abc@host:2053?pbk=entry"
 
 
 def test_provision_agent_error() -> None:
