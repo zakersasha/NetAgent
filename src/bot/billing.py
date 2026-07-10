@@ -272,8 +272,8 @@ class BillingClient:
             if plan.product_type in ("vpn", "bundle"):
                 try:
                     self.ensure_vpn_key(telegram_id)
-                except (XrayProvisionerError, RuntimeError):
-                    pass
+                except (XrayProvisionerError, RuntimeError) as exc:
+                    logger.warning("VPN key not provisioned for tg=%s: %s", telegram_id, exc)
 
             line = "vpn" if plan.product_type in ("vpn", "bundle") else "ai"
             return self._load_subscription_view(session, telegram_id, line=line) or SubscriptionView(
@@ -316,8 +316,8 @@ class BillingClient:
                     self.ensure_vpn_key(user.telegram_id)
                 else:
                     self.ensure_vpn_key_for_user(user.id)
-            except (XrayProvisionerError, RuntimeError, NoSubscriptionError):
-                pass
+            except (XrayProvisionerError, RuntimeError, NoSubscriptionError) as exc:
+                logger.warning("VPN key not provisioned for payment=%s: %s", payment_id, exc)
 
         with self._session_factory() as session:
             user = session.get(User, payment.user_id)
@@ -891,8 +891,8 @@ class BillingClient:
             if plan.product_type in ("vpn", "bundle"):
                 try:
                     self.ensure_vpn_key_for_user(user_id)
-                except (XrayProvisionerError, RuntimeError):
-                    pass
+                except (XrayProvisionerError, RuntimeError) as exc:
+                    logger.warning("VPN key not provisioned for user=%s: %s", user_id, exc)
 
             line = "vpn" if plan.product_type in ("vpn", "bundle") else "ai"
             return self._load_subscription_view_for_user(session, user_id, line=line) or SubscriptionView(

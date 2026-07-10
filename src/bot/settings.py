@@ -15,6 +15,7 @@ class BotSettings(BaseSettings):
     yookassa_secret_key: str = Field("", alias="YOOKASSA_SECRET_KEY")
     yookassa_return_url: str = Field("", alias="YOOKASSA_RETURN_URL")
     service_name: str = Field("NetAgent", alias="BOT_SERVICE_NAME")
+    web_base_url: str = Field("", alias="WEB_BASE_URL")
     support_contact: str = Field("@sashakharlamov", alias="BOT_SUPPORT_CONTACT")
     support_notify_telegram_id: int = Field(0, alias="SUPPORT_NOTIFY_TELEGRAM_ID")
     timezone: str = Field("Europe/Moscow", alias="TIMEZONE")

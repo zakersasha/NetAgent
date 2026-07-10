@@ -156,9 +156,11 @@ def subscription_reminder_keyboard(plan_slug: str, price_rub: int) -> InlineKeyb
     return builder.as_markup()
 
 
-def onboarding_step1_keyboard() -> InlineKeyboardMarkup:
+def onboarding_step1_keyboard(*, privacy_url: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="Далее →", callback_data="onboard:next")
+    if privacy_url:
+        builder.button(text="📄 Политика конфиденциальности", url=privacy_url)
+    builder.button(text="Принять", callback_data="onboard:accept")
     builder.adjust(1)
     return builder.as_markup()
 

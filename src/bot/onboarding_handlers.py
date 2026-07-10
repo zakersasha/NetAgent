@@ -7,6 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from bot.billing import BillingClient, BillingError, NoSubscriptionError
+from bot.xray_provisioner import XrayProvisionerError
 from bot.keyboards import (
     main_menu,
     onboarding_step1_keyboard,
@@ -54,12 +55,20 @@ async def _get_step(state: FSMContext) -> int:
     return int(data.get("onboard_step", 1))
 
 
+def _privacy_url(settings: BotSettings) -> str | None:
+    base = settings.web_base_url.strip().rstrip("/")
+    if not base:
+        return None
+    return f"{base}/privacy"
+
+
 async def show_onboarding_step1(
     message_or_callback: Message | CallbackQuery,
     settings: BotSettings,
 ) -> None:
-    text = onboarding_step1_text(settings.service_name)
-    markup = onboarding_step1_keyboard()
+    privacy_url = _privacy_url(settings)
+    text = onboarding_step1_text(settings.service_name, privacy_url=privacy_url)
+    markup = onboarding_step1_keyboard(privacy_url=privacy_url)
     if isinstance(message_or_callback, CallbackQuery):
         await message_or_callback.message.edit_text(text, reply_markup=markup)
     else:
@@ -100,9 +109,9 @@ async def show_onboarding_step2_plan(
 
 
 async def show_onboarding_step3_platforms(callback: CallbackQuery, billing: BillingClient) -> None:
-    uri = await _connection_uri_for_user(billing, callback.from_user.id)
+    uri, key_error = await _connection_uri_for_user(billing, callback.from_user.id)
     await callback.message.edit_text(
-        onboarding_step3_platform_text(uri),
+        onboarding_step3_platform_text(uri, key_error=key_error),
         reply_markup=onboarding_step3_platform_keyboard(),
     )
 
@@ -114,25 +123,30 @@ async def show_onboarding_step3_instructions(
 ) -> None:
     from bot.messages import onboarding_setup_instructions_text
 
-    uri = await _connection_uri_for_user(billing, callback.from_user.id)
+    connection_uri, _ = await _connection_uri_for_user(billing, callback.from_user.id)
     await callback.message.edit_text(
-        onboarding_setup_instructions_text(platform, uri),
+        onboarding_setup_instructions_text(platform, connection_uri),
         reply_markup=onboarding_step3_done_keyboard(),
         disable_web_page_preview=False,
     )
 
 
-async def _connection_uri_for_user(billing: BillingClient, telegram_id: int) -> str | None:
+async def _connection_uri_for_user(
+    billing: BillingClient,
+    telegram_id: int,
+) -> tuple[str | None, str | None]:
     status = billing.get_account_status(telegram_id)
     if not status.vpn_subscription:
-        return None
+        return None, None
     if status.vpn_subscription.devices:
-        return status.vpn_subscription.devices[0].connection_uri
+        return status.vpn_subscription.devices[0].connection_uri, None
     try:
         device = await asyncio.to_thread(billing.ensure_vpn_key, telegram_id)
-    except (NoSubscriptionError, RuntimeError):
-        return None
-    return device.connection_uri
+    except XrayProvisionerError as exc:
+        return None, str(exc)
+    except (NoSubscriptionError, RuntimeError) as exc:
+        return None, str(exc)
+    return device.connection_uri, None
 
 
 def create_onboarding_router(
@@ -161,7 +175,7 @@ def create_onboarding_router(
         await _set_step(state, 1)
         await show_onboarding_step1(message, settings)
 
-    @router.callback_query(lambda q: q.data == "onboard:next")
+    @router.callback_query(lambda q: q.data in {"onboard:next", "onboard:accept"})
     async def onboard_next(callback: CallbackQuery, state: FSMContext) -> None:
         step = await _get_step(state)
         if step == 1:

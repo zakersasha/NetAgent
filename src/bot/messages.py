@@ -21,16 +21,24 @@ def _onboarding_header(step: int, total: int = 3) -> str:
     return f"📍 <b>Шаг {step} из {total}</b>\n\n"
 
 
-def onboarding_step1_text(service_name: str) -> str:
+def onboarding_step1_text(service_name: str, *, privacy_url: str | None = None) -> str:
+    privacy_line = (
+        f'\n\nНажимая «Принять», вы соглашаетесь с '
+        f'<a href="{escape(privacy_url)}">политикой конфиденциальности</a>.'
+        if privacy_url
+        else "\n\nНажимая «Принять», вы соглашаетесь с политикой конфиденциальности."
+    )
     return (
         _onboarding_header(1)
         + f"👋 <b>Добро пожаловать в {escape(service_name)}</b>\n\n"
-        "Это защищённый канал для удалённой работы из любой точки мира.\n\n"
-        "<b>Что вы получите:</b>\n"
-        "• Стабильный доступ к рабочим сервисам с телефона и компьютера\n"
-        "• Подключение за 2 минуты — скачал, вставил ключ, включил\n"
+        "Это <b>AI-чат в Telegram</b> для повседневных задач: вопросы, тексты, идеи.\n\n"
+        "<b>Что доступно:</b>\n"
+        "• 🆓 <b>3 сообщения AI</b> бесплатно сегодня\n"
+        "• После оплаты — безлимитный AI-чат\n"
+        "• Для подписчиков — защищённый канал для удалённой работы (настроим после оплаты)\n"
         "• Поддержка в боте, если что-то непонятно\n\n"
         "Дальше — выбор тарифа и простая настройка."
+        + privacy_line
     )
 
 
@@ -63,7 +71,11 @@ def onboarding_step2_plan_text(plan: Plan, purchase_blocked: str | None = None) 
     return body
 
 
-def onboarding_step3_platform_text(connection_uri: str | None) -> str:
+def onboarding_step3_platform_text(
+    connection_uri: str | None,
+    *,
+    key_error: str | None = None,
+) -> str:
     rows = [
         _onboarding_header(3) + "📱 <b>Настройка VPN</b>\n",
         "Выберите ваше устройство — покажем пошаговую инструкцию.",
@@ -73,6 +85,9 @@ def onboarding_step3_platform_text(connection_uri: str | None) -> str:
             "\n\n🔑 <b>Ваш ключ</b> (понадобится на шаге «Вставить»):\n"
             f"<code>{escape(connection_uri)}</code>"
         )
+    elif key_error:
+        rows.append(f"\n\n⚠️ Не удалось создать ключ:\n{escape(key_error)}")
+        rows.append("\nНапишите в «Поддержку» — поможем.")
     else:
         rows.append("\n\n⏳ Ключ создаётся… Если не появился — напишите в «Поддержку».")
     return "\n".join(rows)
