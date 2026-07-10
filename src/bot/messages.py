@@ -17,31 +17,152 @@ def welcome_text(service_name: str) -> str:
     )
 
 
+def _onboarding_header(step: int, total: int = 3) -> str:
+    return f"📍 <b>Шаг {step} из {total}</b>\n\n"
+
+
+def onboarding_step1_text(service_name: str) -> str:
+    return (
+        _onboarding_header(1)
+        + f"👋 <b>Добро пожаловать в {escape(service_name)}</b>\n\n"
+        "Это защищённый канал для удалённой работы из любой точки мира.\n\n"
+        "<b>Что вы получите:</b>\n"
+        "• Стабильный доступ к рабочим сервисам с телефона и компьютера\n"
+        "• Подключение за 2 минуты — скачал, вставил ключ, включил\n"
+        "• Поддержка в боте, если что-то непонятно\n\n"
+        "Дальше — выбор тарифа и простая настройка."
+    )
+
+
+def onboarding_step2_plans_text(plans: tuple[Plan, ...]) -> str:
+    rows = [
+        _onboarding_header(2) + "💳 <b>Выберите тариф на 30 дней</b>\n",
+        "Нажмите на подходящий вариант — на следующем экране будет оплата.",
+    ]
+    for plan in plans:
+        hint = " · рекомендуем" if plan.slug == "combo" else ""
+        rows.append(
+            f"\n<b>{escape(plan.name)}</b>{hint} · {plan.price_rub} ₽\n"
+            f"{escape(plan.description)}"
+        )
+    return "\n".join(rows)
+
+
+def onboarding_step2_plan_text(plan: Plan, purchase_blocked: str | None = None) -> str:
+    traffic = f"📊 Трафик: <b>{plan.traffic_limit_gb} ГБ</b>/мес\n" if plan.traffic_limit_gb else ""
+    body = (
+        _onboarding_header(2)
+        + f"<b>{escape(plan.name)}</b> · {plan.price_rub} ₽\n\n"
+        f"{escape(plan.description)}\n\n"
+        f"{traffic}"
+        f"Срок: <b>{plan.duration_days} дней</b>\n\n"
+        "После оплаты сразу перейдём к настройке VPN."
+    )
+    if purchase_blocked:
+        body += f"\n\n⚠️ {escape(purchase_blocked)}"
+    return body
+
+
+def onboarding_step3_platform_text(connection_uri: str | None) -> str:
+    rows = [
+        _onboarding_header(3) + "📱 <b>Настройка VPN</b>\n",
+        "Выберите ваше устройство — покажем пошаговую инструкцию.",
+    ]
+    if connection_uri:
+        rows.append(
+            "\n\n🔑 <b>Ваш ключ</b> (понадобится на шаге «Вставить»):\n"
+            f"<code>{escape(connection_uri)}</code>"
+        )
+    else:
+        rows.append("\n\n⏳ Ключ создаётся… Если не появился — напишите в «Поддержку».")
+    return "\n".join(rows)
+
+
+def onboarding_setup_instructions_text(platform: str, connection_uri: str | None) -> str:
+    key_block = (
+        f"\n\n🔑 <b>Ваш ключ — скопируйте целиком:</b>\n"
+        f"<code>{escape(connection_uri)}</code>"
+        if connection_uri
+        else "\n\n⚠️ Ключ не найден. Откройте «Моя подписка» или напишите в поддержку."
+    )
+
+    if platform == "iphone":
+        app_block = (
+            "<b>1. Скачайте приложение</b>\n"
+            "• <a href=\"https://apps.apple.com/app/streisand/id6450534064\">Streisand</a> (рекомендуем)\n"
+            "• или <a href=\"https://apps.apple.com/app/v2raytun/id6476628951\">v2rayTun</a>\n\n"
+            "<b>2. Скопируйте ключ</b>\n"
+            "Нажмите на ключ ниже → «Копировать».\n\n"
+            "<b>3. Вставьте в приложение</b>\n"
+            "Streisand: «+» → «Добавить из буфера» / Import from clipboard.\n"
+            "v2rayTun: «+» → «Импорт из буфера обмена».\n\n"
+            "<b>4. Включите VPN</b>\n"
+            "Нажмите переключатель рядом с профилем.\n"
+            "iOS спросит разрешение — нажмите «Разрешить».\n\n"
+            "<b>5. Проверка</b>\n"
+            "Откройте Safari — сайты должны открываться.\n"
+            "Для проверки с мобильного интернета выключите Wi‑Fi."
+        )
+        title = "📱 <b>iPhone — настройка за 2 минуты</b>"
+    elif platform == "android":
+        app_block = (
+            "<b>1. Скачайте приложение</b>\n"
+            "• <a href=\"https://play.google.com/store/apps/details?id=com.v2ray.ang\">v2rayNG</a> "
+            "из Google Play\n"
+            "• или APK с "
+            "<a href=\"https://github.com/2dust/v2rayNG/releases\">GitHub</a>\n\n"
+            "<b>2. Скопируйте ключ</b>\n"
+            "Нажмите на ключ ниже → «Копировать».\n\n"
+            "<b>3. Вставьте в приложение</b>\n"
+            "v2rayNG: «+» → «Импорт из буфера обмена» / Import config from clipboard.\n\n"
+            "<b>4. Включите VPN</b>\n"
+            "Выберите профиль → нажмите кнопку ▶ (Подключить) внизу.\n"
+            "Android попросит разрешение VPN — нажмите «ОК».\n\n"
+            "<b>5. Проверка</b>\n"
+            "Откройте браузер — сайты должны открываться."
+        )
+        title = "🤖 <b>Android — настройка за 2 минуты</b>"
+    else:
+        app_block = (
+            "<b>1. Скачайте приложение</b>\n"
+            "• <a href=\"https://github.com/hiddify/hiddify-app/releases\">Hiddify</a> "
+            "(Windows / macOS / Linux)\n"
+            "• или <a href=\"https://github.com/2dust/v2rayN/releases\">v2rayN</a> (Windows)\n\n"
+            "<b>2. Скопируйте ключ</b>\n"
+            "Нажмите на ключ ниже → «Копировать».\n\n"
+            "<b>3. Вставьте в приложение</b>\n"
+            "Hiddify: «Новый профиль» → «Добавить из буфера обмена».\n"
+            "v2rayN: «Серверы» → «Импорт из буфера обмена».\n\n"
+            "<b>4. Включите VPN</b>\n"
+            "Выберите добавленный профиль и нажмите «Подключить».\n\n"
+            "<b>5. Проверка</b>\n"
+            "Откройте браузер — сайты должны открываться."
+        )
+        title = "💻 <b>Компьютер — настройка за 2 минуты</b>"
+
+    return _onboarding_header(3) + title + "\n\n" + app_block + key_block
+
+
 def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) -> str:
     rows = ["📋 <b>Моя подписка</b>\n"]
 
     if status.vpn_subscription:
         sub = status.vpn_subscription
-        m = marketing_for(sub.plan.slug)
-        devices = f" · {m.devices}" if m else ""
         rows.append(
             f"\n🔒 <b>Защищённый канал</b> · активен\n"
-            f"Тариф: {escape(sub.plan.name)}{devices}\n"
+            f"Тариф: {escape(sub.plan.name)}\n"
             f"До: <b>{sub.expires_at.strftime('%d.%m.%Y')}</b> "
             f"({sub.days_left} дн.)"
         )
-        rows.append("\n\n" + instructions_short_text())
         if sub.devices:
             device = sub.devices[0]
             rows.append(
-                f"\n\n📄 <b>Профиль доступа</b>\n"
-                f"<code>{escape(device.connection_uri)}</code>"
+                f"\n\n🔑 <b>Ключ для подключения</b>\n"
+                f"<code>{escape(device.connection_uri)}</code>\n\n"
+                "Нажмите «Как подключить» — пошаговая инструкция."
             )
         else:
-            rows.append(
-                "\n\n📄 Профиль создаётся… Нажмите «Получить профиль» "
-                "или подождите пару секунд."
-            )
+            rows.append("\n\n⏳ Ключ создаётся… Обновите экран через несколько секунд.")
     else:
         rows.append("\n🔒 <b>Защищённый канал</b> · не активен")
 

@@ -9,7 +9,7 @@ def _plan(slug: str) -> Plan:
     return get_plan(slug)
 
 
-def main_menu(*, allow_mock_payment: bool = False) -> InlineKeyboardMarkup:
+def main_menu(*, allow_mock_payment: bool = False, bot_username: str = "") -> InlineKeyboardMarkup:
     standard = _plan("combo")
     builder = InlineKeyboardBuilder()
     builder.button(text="💬 Чат с ИИ", callback_data="ai:open")
@@ -25,6 +25,8 @@ def main_menu(*, allow_mock_payment: bool = False) -> InlineKeyboardMarkup:
         )
     builder.button(text="📋 Моя подписка", callback_data="account")
     builder.button(text="💳 Все тарифы", callback_data="shop")
+    if bot_username:
+        builder.button(text="👥 Поделиться", callback_data="share")
     builder.button(text="🆘 Поддержка", callback_data="support")
     builder.adjust(1)
     return builder.as_markup()
@@ -70,18 +72,12 @@ def upsell_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def account_keyboard(status: AccountStatusView, bot_username: str = "") -> InlineKeyboardMarkup:
-    standard = _plan("combo")
+def account_keyboard(status: AccountStatusView) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    vpn = status.vpn_subscription
-    if vpn:
-        if not vpn.devices:
-            builder.button(text="📄 Получить профиль", callback_data="device:ensure")
-        else:
-            builder.button(text="🔄 Новый профиль", callback_data="device:regenerate")
-        if bot_username:
-            builder.button(text="👥 Поделиться", callback_data="share")
+    if status.vpn_subscription:
+        builder.button(text="📖 Как подключить", callback_data="onboard:setup")
     else:
+        standard = _plan("combo")
         builder.button(
             text=f"⭐ {standard.name} · {standard.price_rub} ₽",
             callback_data="plan:combo",
@@ -94,6 +90,8 @@ def account_keyboard(status: AccountStatusView, bot_username: str = "") -> Inlin
 
 def payment_success_keyboard(subscription: SubscriptionView) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    if subscription.plan.product_type in ("vpn", "bundle"):
+        builder.button(text="📖 Настроить VPN", callback_data="onboard:setup")
     if subscription.plan.product_type == "bundle":
         builder.button(text="📋 Моя подписка", callback_data="account")
         builder.button(text="💬 Начать чат", callback_data="ai:open")
@@ -158,28 +156,83 @@ def subscription_reminder_keyboard(plan_slug: str, price_rub: int) -> InlineKeyb
     return builder.as_markup()
 
 
-def devices_keyboard(subscription: SubscriptionView) -> InlineKeyboardMarkup:
+def onboarding_step1_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    if not subscription.devices:
-        builder.button(text="📄 Получить профиль", callback_data="device:ensure")
-    else:
-        builder.button(text="🔄 Новый профиль", callback_data="device:regenerate")
-    builder.button(text="⬅️ Моя подписка", callback_data="account")
+    builder.button(text="Далее →", callback_data="onboard:next")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def device_detail_keyboard(device_id: int) -> InlineKeyboardMarkup:
+def onboarding_step2_plans_keyboard(plans: tuple[Plan, ...]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔄 Новый профиль", callback_data="device:regenerate")
-    builder.button(text="⬅️ Моя подписка", callback_data="account")
+    for plan in plans:
+        prefix = "⭐ " if plan.slug == "combo" else "🔒 "
+        if plan.product_type == "bundle" and plan.slug != "combo":
+            prefix = "✨ "
+        builder.button(
+            text=f"{prefix}{plan.name} · {plan.price_rub} ₽",
+            callback_data=f"onboard:plan:{plan.slug}",
+        )
+    builder.button(text="← Назад", callback_data="onboard:back")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def back_to_menu_keyboard() -> InlineKeyboardMarkup:
+def onboarding_step2_pay_keyboard(
+    plan: Plan,
+    *,
+    can_pay: bool = True,
+    payment_provider: str = "mock",
+    allow_mock_payment: bool = False,
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="⬅️ Главное меню", callback_data="menu")
+    is_yookassa = payment_provider.strip().lower() == "yookassa"
+    if can_pay:
+        if is_yookassa:
+            builder.button(
+                text=f"Оплатить {plan.price_rub} ₽",
+                callback_data=f"onboard:pay:{plan.slug}",
+            )
+        else:
+            builder.button(
+                text=f"Оплатить {plan.price_rub} ₽",
+                callback_data=f"onboard:mockpay:{plan.slug}",
+            )
+    if allow_mock_payment and is_yookassa:
+        builder.button(
+            text="🧪 Тест без оплаты",
+            callback_data=f"onboard:mockpay:{plan.slug}",
+        )
+    builder.button(text="← К тарифам", callback_data="onboard:plans")
+    builder.button(text="← Назад", callback_data="onboard:back")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def onboarding_step3_platform_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📱 iPhone", callback_data="onboard:platform:iphone")
+    builder.button(text="🤖 Android", callback_data="onboard:platform:android")
+    builder.button(text="💻 Компьютер", callback_data="onboard:platform:pc")
+    builder.button(text="← Назад", callback_data="onboard:back")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def onboarding_step3_done_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🏠 Главное меню", callback_data="menu")
+    builder.button(text="← Другое устройство", callback_data="onboard:platforms")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def onboarding_payment_link_keyboard(confirmation_url: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="💳 Перейти к оплате", url=confirmation_url)
+    builder.button(text="✅ Я оплатил — настройка", callback_data="onboard:paid")
+    builder.button(text="← К тарифам", callback_data="onboard:plans")
+    builder.adjust(1)
     return builder.as_markup()
 
 
@@ -199,6 +252,12 @@ def share_keyboard(bot_username: str) -> InlineKeyboardMarkup:
         f"https://t.me/{bot_username}"
     )
     builder.button(text="📨 Отправить", switch_inline_query=share_text)
-    builder.button(text="⬅️ Моя подписка", callback_data="account")
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def back_to_menu_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Главное меню", callback_data="menu")
     return builder.as_markup()

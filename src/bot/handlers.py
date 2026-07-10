@@ -8,12 +8,9 @@ from aiogram.types import CallbackQuery, Message
 from bot.billing import (
     BillingClient,
     BillingError,
-    NoSubscriptionError,
 )
 from bot.keyboards import (
     account_keyboard,
-    device_detail_keyboard,
-    devices_keyboard,
     main_menu,
     payment_keyboard,
     payment_link_keyboard,
@@ -25,14 +22,10 @@ from bot.messages import (
     account_status_text,
     activating_text,
     activation_error_text,
-    adding_device_text,
-    device_detail_text,
-    devices_text,
     no_subscription_text,
     payment_checkout_text,
     payment_success_text,
     plan_details_text,
-    regenerate_key_text,
     share_text,
     shop_text,
     welcome_text,
@@ -50,10 +43,15 @@ def create_router(
     router = Router(name="netagent_bot")
 
     def menu_markup():
-        return main_menu(allow_mock_payment=settings.allow_mock_payment)
+        return main_menu(
+            allow_mock_payment=settings.allow_mock_payment,
+            bot_username=bot_username,
+        )
 
     @router.message(CommandStart())
-    async def start(message: Message, state: FSMContext) -> None:
+    async def start_existing_user(message: Message, state: FSMContext) -> None:
+        if not billing.get_subscription(message.from_user.id):
+            return
         await state.clear()
         await message.answer(welcome_text(settings.service_name), reply_markup=menu_markup())
 
@@ -62,27 +60,12 @@ def create_router(
         plans = billing.plans("shop")
         await message.answer(shop_text(plans), reply_markup=shop_keyboard(plans))
 
-    @router.message(Command("devices"))
-    async def cmd_devices(message: Message) -> None:
-        subscription = billing.get_subscription(message.from_user.id)
-        if not subscription:
-            status = billing.get_account_status(message.from_user.id)
-            await message.answer(
-                no_subscription_text(),
-                reply_markup=account_keyboard(status, bot_username),
-            )
-        else:
-            await message.answer(
-                devices_text(subscription),
-                reply_markup=devices_keyboard(subscription),
-            )
-
     @router.message(Command("help"))
     async def cmd_help(message: Message) -> None:
         status = billing.get_account_status(message.from_user.id)
         await message.answer(
             account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status, bot_username),
+            reply_markup=account_keyboard(status),
             disable_web_page_preview=True,
         )
 
@@ -101,7 +84,8 @@ def create_router(
         status = billing.get_account_status(callback.from_user.id)
         await callback.message.edit_text(
             account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status, bot_username),
+            reply_markup=account_keyboard(status),
+            disable_web_page_preview=True,
         )
         await callback.answer()
 
@@ -194,82 +178,5 @@ def create_router(
             payment_success_text(subscription),
             reply_markup=payment_success_keyboard(subscription),
         )
-
-    @router.callback_query(lambda query: query.data in {"my_key", "status"})
-    async def my_key(callback: CallbackQuery) -> None:
-        subscription = billing.get_subscription(callback.from_user.id)
-        if not subscription:
-            status = billing.get_account_status(callback.from_user.id)
-            await callback.message.edit_text(
-                no_subscription_text(),
-                reply_markup=account_keyboard(status, bot_username),
-            )
-        else:
-            await callback.message.edit_text(
-                devices_text(subscription),
-                reply_markup=devices_keyboard(subscription),
-            )
-        await callback.answer()
-
-    @router.callback_query(lambda query: query.data == "device:ensure")
-    async def ensure_key(callback: CallbackQuery) -> None:
-        await callback.answer("Создаём ключ…")
-        await callback.message.edit_text(adding_device_text(), reply_markup=None)
-        try:
-            await asyncio.to_thread(billing.ensure_vpn_key, callback.from_user.id)
-        except (NoSubscriptionError, RuntimeError) as exc:
-            await callback.message.edit_text(
-                activation_error_text(str(exc)),
-                reply_markup=menu_markup(),
-            )
-            return
-        status = billing.get_account_status(callback.from_user.id)
-        await callback.message.edit_text(
-            account_status_text(status, settings.ai_free_daily_limit),
-            reply_markup=account_keyboard(status, bot_username),
-        )
-
-    @router.callback_query(lambda query: query.data == "device:regenerate")
-    async def regenerate_key(callback: CallbackQuery) -> None:
-        await callback.answer("Обновляем ключ…")
-        await callback.message.edit_text(regenerate_key_text(), reply_markup=None)
-        try:
-            device = await asyncio.to_thread(billing.regenerate_vpn_key, callback.from_user.id)
-        except (NoSubscriptionError, RuntimeError) as exc:
-            await callback.message.edit_text(
-                activation_error_text(str(exc)),
-                reply_markup=menu_markup(),
-            )
-            return
-        await callback.message.edit_text(
-            device_detail_text(device),
-            reply_markup=device_detail_keyboard(device.id),
-        )
-
-    @router.callback_query(lambda query: query.data and query.data.startswith("device:view:"))
-    async def view_device(callback: CallbackQuery) -> None:
-        device_id = int(callback.data.split(":", 2)[2])
-        device = billing.get_device(callback.from_user.id, device_id)
-        if not device:
-            subscription = billing.get_subscription(callback.from_user.id)
-            if subscription:
-                await callback.message.edit_text(
-                    devices_text(subscription),
-                    reply_markup=devices_keyboard(subscription),
-                )
-            else:
-                status = billing.get_account_status(callback.from_user.id)
-                await callback.message.edit_text(
-                    no_subscription_text(),
-                    reply_markup=account_keyboard(status, bot_username),
-                )
-            await callback.answer()
-            return
-
-        await callback.message.edit_text(
-            device_detail_text(device),
-            reply_markup=device_detail_keyboard(device_id),
-        )
-        await callback.answer()
 
     return router

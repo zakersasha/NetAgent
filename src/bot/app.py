@@ -13,6 +13,7 @@ from bot.ai_service import AiChatService
 from bot.billing import BillingClient
 from bot.commands import setup_bot_commands
 from bot.handlers import create_router
+from bot.onboarding_handlers import create_onboarding_router
 from bot.subscription_reminders import subscription_reminder_loop
 from bot.support_handlers import create_support_router
 from bot.support_service import SupportService
@@ -143,6 +144,9 @@ async def main() -> None:
 
     dispatcher.include_router(create_ai_router(settings, billing, ai_service))
     dispatcher.include_router(create_support_router(settings, support_service))
+    dispatcher.include_router(
+        create_onboarding_router(settings, billing, bot_username, payment_service)
+    )
     dispatcher.include_router(create_router(settings, billing, bot_username, payment_service))
 
     await setup_bot_commands(bot)
