@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import logging
 from datetime import datetime, timedelta
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -14,6 +15,8 @@ from netagent_common.vpn_nodes import VpnNodeCapacityError, pick_vpn_node
 from netagent_common.vless_uri import build_vless_reality_uri
 from netagent_db.models import Device, Payment, Plan, Subscription, User, VpnNode
 from xray_client.client import XrayAgentClient
+
+logger = logging.getLogger(__name__)
 
 
 class DeviceLimitExceededError(ValueError):
@@ -347,6 +350,20 @@ class BillingClient:
             if existing:
                 return self._device_view(existing, preset)
 
+            expired = session.scalar(
+                select(Device)
+                .join(User, Device.user_id == User.id)
+                .where(
+                    User.telegram_id == telegram_id,
+                    Device.device_slug == preset.slug,
+                    Device.status == "expired",
+                )
+                .options(joinedload(Device.vpn_node))
+                .order_by(Device.created_at.desc())
+            )
+            if expired:
+                return self._restore_vpn_device(session, subscription, expired, preset)
+
             return self._create_vpn_device(session, subscription, preset)
 
     def regenerate_vpn_key(self, telegram_id: int) -> DeviceView:
@@ -386,6 +403,76 @@ class BillingClient:
 
     def add_device(self, telegram_id: int, preset_slug: str = VPN_KEY_PRESET.slug) -> DeviceView:
         return self.ensure_vpn_key(telegram_id)
+
+    def expire_due_subscriptions(self) -> int:
+        """Mark overdue subscriptions expired and revoke VPN keys from Xray."""
+        now = datetime.now(self.timezone)
+        expired_count = 0
+        with self._session_factory() as session:
+            subscriptions = session.scalars(
+                select(Subscription)
+                .join(Plan, Subscription.plan_id == Plan.id)
+                .where(
+                    Subscription.status == "active",
+                    Subscription.expires_at.is_not(None),
+                    Subscription.expires_at <= now,
+                )
+                .options(
+                    joinedload(Subscription.plan),
+                    joinedload(Subscription.devices).joinedload(Device.vpn_node),
+                )
+            ).unique().all()
+
+            for subscription in subscriptions:
+                subscription.status = "expired"
+                expired_count += 1
+                if subscription.plan.product_type not in ("vpn", "bundle"):
+                    continue
+                for device in subscription.devices:
+                    if device.status != "active":
+                        continue
+                    provisioner = self._provisioner_for_node(device.vpn_node)
+                    try:
+                        provisioner.revoke_key(uuid=device.uuid)
+                    except XrayProvisionerError as exc:
+                        logger.warning(
+                            "Expire revoke failed sub=%s uuid=%s: %s",
+                            subscription.id,
+                            device.uuid,
+                            exc,
+                        )
+                    device.status = "expired"
+                    device.suspended_at = None
+                    device.suspended_reason = None
+
+            if expired_count:
+                session.commit()
+        return expired_count
+
+    def _restore_vpn_device(
+        self,
+        session: Session,
+        subscription: Subscription,
+        device: Device,
+        preset: DevicePreset,
+    ) -> DeviceView:
+        device.subscription_id = subscription.id
+        device.status = "active"
+        device.suspended_at = None
+        device.suspended_reason = None
+        provisioner = self._provisioner_for_node(device.vpn_node)
+        provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
+        try:
+            session.commit()
+        except Exception:
+            session.rollback()
+            try:
+                provisioner.revoke_key(uuid=device.uuid)
+            except XrayProvisionerError:
+                pass
+            raise
+        session.refresh(device)
+        return self._device_view(device, preset)
 
     def _create_vpn_device(
         self,
@@ -833,6 +920,19 @@ class BillingClient:
             )
             if existing:
                 return self._device_view(existing, preset)
+
+            expired = session.scalar(
+                select(Device)
+                .where(
+                    Device.user_id == user_id,
+                    Device.device_slug == preset.slug,
+                    Device.status == "expired",
+                )
+                .options(joinedload(Device.vpn_node))
+                .order_by(Device.created_at.desc())
+            )
+            if expired:
+                return self._restore_vpn_device(session, subscription, expired, preset)
             return self._create_vpn_device(session, subscription, preset)
 
     def regenerate_vpn_key_for_user(self, user_id: int) -> DeviceView:

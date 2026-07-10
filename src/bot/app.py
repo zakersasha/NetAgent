@@ -15,6 +15,7 @@ from bot.commands import setup_bot_commands
 from bot.handlers import create_router
 from bot.onboarding_handlers import create_onboarding_router
 from bot.subscription_reminders import subscription_reminder_loop
+from bot.subscription_expiration import subscription_expiration_loop
 from bot.support_handlers import create_support_router
 from bot.support_service import SupportService
 from bot.xray_provisioner import XrayProvisioner
@@ -158,12 +159,22 @@ async def main() -> None:
             settings.timezone,
         )
     )
+    expiration_task = asyncio.create_task(
+        subscription_expiration_loop(
+            billing,
+            session_factory,
+            settings.timezone,
+        )
+    )
     try:
         await dispatcher.start_polling(bot)
     finally:
         reminder_task.cancel()
+        expiration_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await reminder_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await expiration_task
 
 
 if __name__ == "__main__":

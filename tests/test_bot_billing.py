@@ -138,3 +138,53 @@ def test_combo_grants_ai_and_vpn(billing_client: BillingClient) -> None:
     status = billing_client.get_account_status(123)
     assert status.has_ai_unlimited
     assert status.vpn_subscription is not None
+
+
+def test_expire_due_subscriptions_revokes_device(billing_client: BillingClient) -> None:
+    billing_client.activate_mock_payment(telegram_id=123, plan_slug="connect")
+    device = billing_client.ensure_vpn_key(telegram_id=123)
+
+    _set_subscription_expired(billing_client, telegram_id=123)
+
+    expired = billing_client.expire_due_subscriptions()
+    assert expired == 1
+    assert billing_client.get_subscription(123) is None
+
+    with billing_client._session_factory() as session:  # noqa: SLF001
+        from netagent_db.models import Device, Subscription, User
+
+        user = session.scalar(select(User).where(User.telegram_id == 123))
+        sub = session.scalar(select(Subscription).where(Subscription.user_id == user.id))
+        dev = session.scalar(select(Device).where(Device.id == device.id))
+        assert sub is not None
+        assert sub.status == "expired"
+        assert dev is not None
+        assert dev.status == "expired"
+        assert dev.uuid == device.xray_uuid
+
+
+def test_renewal_restores_same_vpn_key(billing_client: BillingClient) -> None:
+    billing_client.allow_mock_payment = True
+    billing_client.activate_mock_payment(telegram_id=456, plan_slug="connect")
+    first = billing_client.ensure_vpn_key(telegram_id=456)
+
+    _set_subscription_expired(billing_client, telegram_id=456)
+    billing_client.expire_due_subscriptions()
+
+    billing_client.activate_mock_payment(telegram_id=456, plan_slug="connect_plus")
+    restored = billing_client.ensure_vpn_key(telegram_id=456)
+
+    assert restored.xray_uuid == first.xray_uuid
+    assert restored.connection_uri == first.connection_uri
+
+
+def _set_subscription_expired(billing_client: BillingClient, telegram_id: int) -> None:
+    with billing_client._session_factory() as session:  # noqa: SLF001
+        user = session.scalar(select(User).where(User.telegram_id == telegram_id))
+        assert user is not None
+        sub = session.scalar(
+            select(Subscription).where(Subscription.user_id == user.id, Subscription.status == "active")
+        )
+        assert sub is not None
+        sub.expires_at = datetime.now(billing_client.timezone) - timedelta(hours=1)
+        session.commit()
