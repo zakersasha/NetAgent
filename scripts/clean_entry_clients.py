@@ -6,9 +6,12 @@ Wiping DB volumes creates new UUIDs in the bot while old clients stay in config.
 
 Usage on provmonstage:
   python3 scripts/clean_entry_clients.py --list
-  python3 scripts/clean_entry_clients.py --keep-email 544709692_phone --dry-run
-  python3 scripts/clean_entry_clients.py --keep-email 544709692_phone --apply \\
+  python3 scripts/clean_entry_clients.py --keep-email 653663497_vpn --apply \\
     --restart 'sudo systemctl restart xray'
+
+  # config lives in /usr/local/etc/xray — apply needs root:
+  sudo python3 scripts/clean_entry_clients.py --keep-email 653663497_vpn --apply \\
+    --restart 'systemctl restart xray'
 
 Keep admin/family profile only (also reads AGENT_RESERVED_* from env or --env-file):
   python3 scripts/clean_entry_clients.py --env-file /opt/xray-agent/.env --apply --restart '...'
@@ -19,8 +22,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -91,6 +97,21 @@ def clean_config(
                 removed.append((tag, str(client.get("id", "")), str(client.get("email", ""))))
         inbound["settings"]["clients"] = kept
     return config, removed
+
+
+def config_is_writable(path: Path) -> bool:
+    return os.access(path, os.W_OK) and os.access(path.parent, os.W_OK)
+
+
+def make_backup(path: Path) -> Path:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    backup = Path(tempfile.gettempdir()) / f"netagent-{path.name}.{stamp}.bak"
+    shutil.copy2(path, backup)
+    return backup
+
+
+def restore_backup(backup: Path, path: Path) -> None:
+    shutil.copy2(backup, path)
 
 
 def main() -> int:
@@ -195,9 +216,18 @@ def main() -> int:
             print("\nDry-run only. Pass --apply to write changes.")
         return 0
 
+    if not config_is_writable(path):
+        print(f"ERROR: no write permission for {path}", file=sys.stderr)
+        print("Re-run with sudo, e.g.:", file=sys.stderr)
+        print(
+            "  sudo python3 scripts/clean_entry_clients.py "
+            f"--keep-email ... --apply --restart 'systemctl restart xray'",
+            file=sys.stderr,
+        )
+        return 1
+
     test_cmd = [args.xray_bin, "run", "-test", "-c", str(path)]
-    backup = path.with_suffix(path.suffix + ".bak.clean")
-    backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    backup = make_backup(path)
     print(f"\nBackup: {backup}")
 
     with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as tmp:
@@ -209,7 +239,7 @@ def main() -> int:
 
     result = subprocess.run(test_cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        backup.replace(path)
+        restore_backup(backup, path)
         print("xray -test FAILED, config restored from backup", file=sys.stderr)
         print(result.stdout)
         print(result.stderr, file=sys.stderr)
@@ -217,14 +247,18 @@ def main() -> int:
 
     print("xray -test: OK")
 
-    if args.restart:
-        restart = subprocess.run(args.restart, shell=True, capture_output=True, text=True, check=False)
+    restart_cmd = args.restart
+    if restart_cmd.startswith("sudo ") and os.geteuid() == 0:
+        restart_cmd = restart_cmd.removeprefix("sudo ").strip()
+
+    if restart_cmd:
+        restart = subprocess.run(restart_cmd, shell=True, capture_output=True, text=True, check=False)
         if restart.returncode != 0:
-            print(f"Restart failed: {args.restart}", file=sys.stderr)
+            print(f"Restart failed: {restart_cmd}", file=sys.stderr)
             print(restart.stdout)
             print(restart.stderr, file=sys.stderr)
             return 1
-        print(f"Restarted: {args.restart}")
+        print(f"Restarted: {restart_cmd}")
 
     return 0
 
