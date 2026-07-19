@@ -142,11 +142,16 @@ class XrayConfigService:
             if inbound.get("tag") == self.settings.xray_inbound_tag:
                 return inbound
 
-        for inbound in inbounds:
-            if inbound.get("protocol") == "vless":
-                return inbound
+        vless_inbounds = self._vless_inbounds(config)
+        if len(vless_inbounds) == 1:
+            return vless_inbounds[0]
 
-        raise ConfigError(f"Xray inbound not found: {self.settings.xray_inbound_tag}")
+        available = [str(inbound.get("tag", "")) for inbound in vless_inbounds]
+        raise ConfigError(
+            f"Xray inbound {self.settings.xray_inbound_tag!r} not found "
+            f"(vless inbounds: {', '.join(available)}). "
+            "Set XRAY_INBOUND_TAG in the agent env, e.g. users-in or users-in-fi1."
+        )
 
     def _get_clients(self, inbound: dict[str, Any]) -> list[dict[str, Any]]:
         settings = inbound.setdefault("settings", {})

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from xray_agent.config_service import XrayConfigService
-from xray_agent.errors import ReservedUserError
+from xray_agent.errors import ConfigError, ReservedUserError
 from xray_agent.models import AddUserRequest
 from xray_agent.settings import AgentSettings
 
@@ -190,3 +190,32 @@ def test_atomic_write_preserves_readable_config_permissions(tmp_path: Path) -> N
     service.add_user(AddUserRequest(uuid="user-uuid", email="user_1@netagent.local", limit=1))
 
     assert os.stat(config_path).st_mode & 0o777 == 0o644
+
+
+def test_add_user_requires_inbound_tag_when_multiple_vless_inbounds(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "inbounds": [
+                    {
+                        "tag": "users-in",
+                        "protocol": "vless",
+                        "settings": {"clients": [], "decryption": "none"},
+                    },
+                    {
+                        "tag": "users-in-fi1",
+                        "protocol": "vless",
+                        "settings": {"clients": [], "decryption": "none"},
+                    },
+                ],
+                "outbounds": [{"protocol": "freedom"}],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    service = XrayConfigService(settings(config_path))
+
+    with pytest.raises(ConfigError, match="users-in"):
+        service.add_user(AddUserRequest(uuid="user-uuid", email="user_1@netagent.local", limit=1))
