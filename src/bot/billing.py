@@ -138,7 +138,7 @@ class BillingClient:
         timezone: str = "Europe/Moscow",
         reality_public_key: str = "",
         reality_sni: str = "www.wikipedia.org",
-        reality_short_id: str = "6ba85179e30d4fc3",
+        reality_short_id: str = "6ba85179e30d4fc2",
         vless_flow: str = "xtls-rprx-vision",
         xray_provisioner: XrayProvisioner | None = None,
         xray_agent_api_key: str = "",

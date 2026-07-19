@@ -24,7 +24,7 @@ class BotSettings(BaseSettings):
 
     vless_flow: str = Field("xtls-rprx-vision", alias="VLESS_FLOW")
     reality_sni: str = Field("www.wikipedia.org", alias="REALITY_SNI")
-    reality_short_id: str = Field("6ba85179e30d4fc3", alias="REALITY_SHORT_ID")
+    reality_short_id: str = Field("6ba85179e30d4fc2", alias="REALITY_SHORT_ID")
     reality_public_key: str = Field("", alias="REALITY_PUBLIC_KEY")
 
     xray_agent_url: str = Field("", alias="XRAY_AGENT_URL")

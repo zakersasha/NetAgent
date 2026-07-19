@@ -14,14 +14,26 @@ def load_config(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def list_vless_clients(config: dict) -> list[tuple[str, int | None, str, str, str | None]]:
-    rows: list[tuple[str, int | None, str, str, str | None]] = []
+def list_vless_inbounds(config: dict) -> list[tuple[str, int | None, object, list[dict]]]:
+    rows: list[tuple[str, int | None, object, list[dict]]] = []
     for inbound in config.get("inbounds", []):
         if inbound.get("protocol") != "vless":
             continue
         tag = str(inbound.get("tag", ""))
         port = inbound.get("port")
-        for client in inbound.get("settings", {}).get("clients", []):
+        reality = inbound.get("streamSettings", {}).get("realitySettings", {})
+        short_ids = reality.get("shortIds") or reality.get("shortId")
+        clients = inbound.get("settings", {}).get("clients", [])
+        if not isinstance(clients, list):
+            clients = []
+        rows.append((tag, port, short_ids, clients))
+    return rows
+
+
+def list_vless_clients(config: dict) -> list[tuple[str, int | None, str, str, str | None]]:
+    rows: list[tuple[str, int | None, str, str, str | None]] = []
+    for tag, port, _, clients in list_vless_inbounds(config):
+        for client in clients:
             rows.append(
                 (
                     tag,
@@ -64,12 +76,18 @@ def main() -> int:
     print(f"VLESS clients: {len(clients)}")
     print()
 
-    by_inbound: dict[str, list] = {}
-    for tag, port, uuid, email, flow in clients:
-        by_inbound.setdefault(f"{tag}:{port}", []).append((uuid, email, flow))
+    by_inbound: dict[str, tuple[object, list]] = {}
+    for tag, port, short_ids, clients in list_vless_inbounds(config):
+        key = f"{tag}:{port}"
+        items = [
+            (str(client.get("id", "")), str(client.get("email", "")), client.get("flow"))
+            for client in clients
+        ]
+        by_inbound[key] = (short_ids, items)
 
-    for key, items in by_inbound.items():
+    for key, (short_ids, items) in by_inbound.items():
         print(f"=== inbound {key} ===")
+        print(f"  reality shortIds: {short_ids}")
         for uuid, email, flow in items:
             marker = " <-- TARGET" if args.uuid and uuid == args.uuid else ""
             print(f"  {uuid}  {email}  flow={flow}{marker}")

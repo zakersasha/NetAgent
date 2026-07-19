@@ -30,7 +30,7 @@ class AgentSettings(BaseSettings):
 
     vless_flow: str = "xtls-rprx-vision"
     reality_sni: str = "www.wikipedia.org"
-    reality_short_id: str = "6ba85179e30d4fc3"
+    reality_short_id: str = "6ba85179e30d4fc2"
     reality_fingerprint: str = "chrome"
     reality_public_key: str | None = None
 
