@@ -174,6 +174,7 @@ def account_status_text(status: AccountStatusView, free_daily_limit: int = 3) ->
             rows.append(
                 f"\n\n🔑 <b>Ключ для подключения</b>\n"
                 f"<code>{escape(device.connection_uri)}</code>\n\n"
+                "Если импорт не срабатывает — «Ключ текстом».\n"
                 "Нажмите «Как подключить» — пошаговая инструкция."
             )
         else:

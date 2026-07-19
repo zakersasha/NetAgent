@@ -268,21 +268,24 @@ class BillingClient:
                 )
             )
             session.commit()
-
-            if plan.product_type in ("vpn", "bundle"):
-                try:
-                    self.ensure_vpn_key(telegram_id)
-                except (XrayProvisionerError, RuntimeError) as exc:
-                    logger.warning("VPN key not provisioned for tg=%s: %s", telegram_id, exc)
-
-            line = "vpn" if plan.product_type in ("vpn", "bundle") else "ai"
-            return self._load_subscription_view(session, telegram_id, line=line) or SubscriptionView(
+            plan_product_type = plan.product_type
+            fallback = SubscriptionView(
                 telegram_id=telegram_id,
                 plan=self._plan_view(plan),
                 expires_at=subscription.expires_at,
                 days_left=self._days_left(subscription.expires_at),
                 traffic_limit_gb=plan.traffic_limit_gb,
             )
+
+        if plan_product_type in ("vpn", "bundle"):
+            try:
+                self.ensure_vpn_key(telegram_id)
+            except (XrayProvisionerError, RuntimeError) as exc:
+                logger.warning("VPN key not provisioned for tg=%s: %s", telegram_id, exc)
+
+        line = "vpn" if plan_product_type in ("vpn", "bundle") else "ai"
+        with self._session_factory() as session:
+            return self._load_subscription_view(session, telegram_id, line=line) or fallback
 
     def fulfill_payment(self, payment_id: int) -> SubscriptionView | None:
         """Activate subscription for a succeeded YooKassa payment. Idempotent."""
@@ -348,6 +351,7 @@ class BillingClient:
                 .options(joinedload(Device.vpn_node))
             )
             if existing:
+                self._sync_device_to_xray(existing)
                 return self._device_view(
                     existing,
                     preset,
@@ -589,6 +593,13 @@ class BillingClient:
         """ASCII profile name for VLESS URI fragment (safe to copy from Telegram)."""
         user_part = str(telegram_id) if telegram_id else f"u{user_id}"
         return f"{user_part}_{plan_slug}"
+
+    def _sync_device_to_xray(self, device: Device) -> None:
+        """Idempotent upsert — keeps Xray in sync after mock pay / subscription moves."""
+        if device.status != "active":
+            return
+        provisioner = self._provisioner_for_node(device.vpn_node)
+        provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
 
     def remove_device(self, telegram_id: int, device_id: int) -> None:
         with self._session_factory() as session:
@@ -981,6 +992,7 @@ class BillingClient:
                 .options(joinedload(Device.vpn_node))
             )
             if existing:
+                self._sync_device_to_xray(existing)
                 return self._device_view(
                     existing,
                     preset,

@@ -8,7 +8,9 @@ from aiogram.types import CallbackQuery, Message
 from bot.billing import (
     BillingClient,
     BillingError,
+    NoSubscriptionError,
 )
+from bot.xray_provisioner import XrayProvisionerError
 from bot.keyboards import (
     account_keyboard,
     main_menu,
@@ -48,6 +50,14 @@ def create_router(
             bot_username=bot_username,
         )
 
+    async def _account_status(telegram_id: int) -> AccountStatusView:
+        if billing.get_subscription(telegram_id):
+            try:
+                await asyncio.to_thread(billing.ensure_vpn_key, telegram_id)
+            except (NoSubscriptionError, XrayProvisionerError, RuntimeError):
+                pass
+        return billing.get_account_status(telegram_id)
+
     @router.message(CommandStart())
     async def start_existing_user(message: Message, state: FSMContext) -> None:
         if not billing.get_subscription(message.from_user.id):
@@ -81,13 +91,23 @@ def create_router(
     @router.callback_query(lambda query: query.data == "account")
     async def account(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        status = billing.get_account_status(callback.from_user.id)
+        status = await _account_status(callback.from_user.id)
         await callback.message.edit_text(
             account_status_text(status, settings.ai_free_daily_limit),
             reply_markup=account_keyboard(status),
             disable_web_page_preview=True,
         )
         await callback.answer()
+
+    @router.callback_query(lambda query: query.data == "vpn:plain_key")
+    async def vpn_plain_key(callback: CallbackQuery) -> None:
+        try:
+            device = await asyncio.to_thread(billing.ensure_vpn_key, callback.from_user.id)
+        except (NoSubscriptionError, XrayProvisionerError, RuntimeError) as exc:
+            await callback.answer(str(exc)[:180], show_alert=True)
+            return
+        await callback.message.answer(device.connection_uri, disable_web_page_preview=True)
+        await callback.answer("Ключ отправлен отдельным сообщением")
 
     @router.callback_query(lambda query: query.data == "shop")
     async def shop(callback: CallbackQuery) -> None:

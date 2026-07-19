@@ -76,6 +76,8 @@ def account_keyboard(status: AccountStatusView) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if status.vpn_subscription:
         builder.button(text="📖 Как подключить", callback_data="onboard:setup")
+        if status.vpn_subscription.devices:
+            builder.button(text="📋 Ключ текстом", callback_data="vpn:plain_key")
     else:
         standard = _plan("combo")
         builder.button(
