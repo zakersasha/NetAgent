@@ -340,6 +340,10 @@ class BillingClient:
             if not subscription:
                 raise NoSubscriptionError("Сначала выберите тариф.")
 
+            user = session.scalar(select(User).where(User.telegram_id == telegram_id))
+            if user:
+                self._consolidate_vpn_devices_for_user(session, user.id, subscription.id)
+
             existing = session.scalar(
                 select(Device)
                 .join(User, Device.user_id == User.id)
@@ -349,6 +353,8 @@ class BillingClient:
                     Device.status == "active",
                 )
                 .options(joinedload(Device.vpn_node))
+                .order_by(Device.created_at.desc())
+                .limit(1)
             )
             if existing:
                 self._sync_device_to_xray(existing)
@@ -601,6 +607,39 @@ class BillingClient:
         provisioner = self._provisioner_for_node(device.vpn_node)
         provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
 
+    def _revoke_device_from_xray(self, device: Device) -> None:
+        try:
+            self._provisioner_for_node(device.vpn_node).revoke_key(uuid=device.uuid)
+        except XrayProvisionerError as exc:
+            logger.warning("Xray revoke failed uuid=%s: %s", device.uuid, exc)
+
+    def _consolidate_vpn_devices_for_user(
+        self,
+        session: Session,
+        user_id: int,
+        subscription_id: int,
+    ) -> None:
+        """One active VPN key per user — revoke extras left from test/mock re-payments."""
+        active = session.scalars(
+            select(Device)
+            .where(Device.user_id == user_id, Device.status == "active")
+            .options(joinedload(Device.vpn_node))
+            .order_by(Device.created_at.desc())
+        ).all()
+        if len(active) <= 1:
+            if active:
+                active[0].subscription_id = subscription_id
+            return
+
+        keep = next((d for d in active if d.subscription_id == subscription_id), active[0])
+        keep.subscription_id = subscription_id
+        for device in active:
+            if device.id == keep.id:
+                continue
+            self._revoke_device_from_xray(device)
+            device.status = "expired"
+        session.flush()
+
     def remove_device(self, telegram_id: int, device_id: int) -> None:
         with self._session_factory() as session:
             device = session.scalar(
@@ -728,10 +767,13 @@ class BillingClient:
                 Device.status == "active",
             )
             .options(joinedload(Device.vpn_node))
-            .order_by(Device.created_at)
+            .order_by(Device.created_at.desc())
         ).all()
+        if not devices:
+            return ()
+        device = devices[0]
         plan_slug = subscription.plan.slug
-        return tuple(
+        return (
             DeviceView(
                 id=device.id,
                 slug=device.device_slug,
@@ -745,8 +787,7 @@ class BillingClient:
                     plan_slug=plan_slug,
                 ),
                 created_at=device.created_at,
-            )
-            for device in devices
+            ),
         )
 
     def _conflicting_product_types(self, purchased_type: str) -> tuple[str, ...]:
@@ -982,6 +1023,7 @@ class BillingClient:
             if not subscription:
                 raise NoSubscriptionError("Сначала выберите тариф.")
             user = session.get(User, user_id)
+            self._consolidate_vpn_devices_for_user(session, user_id, subscription.id)
             existing = session.scalar(
                 select(Device)
                 .where(
@@ -990,6 +1032,8 @@ class BillingClient:
                     Device.status == "active",
                 )
                 .options(joinedload(Device.vpn_node))
+                .order_by(Device.created_at.desc())
+                .limit(1)
             )
             if existing:
                 self._sync_device_to_xray(existing)
@@ -1110,12 +1154,15 @@ class BillingClient:
                 Device.status == "active",
             )
             .options(joinedload(Device.vpn_node))
-            .order_by(Device.created_at)
+            .order_by(Device.created_at.desc())
         ).all()
+        if not devices:
+            return ()
+        device = devices[0]
         user = session.get(User, user_id)
         telegram_id = user.telegram_id if user else None
         plan_slug = subscription.plan.slug
-        return tuple(
+        return (
             DeviceView(
                 id=device.id,
                 slug=device.device_slug,
@@ -1129,6 +1176,5 @@ class BillingClient:
                     plan_slug=plan_slug,
                 ),
                 created_at=device.created_at,
-            )
-            for device in devices
+            ),
         )

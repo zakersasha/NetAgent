@@ -218,6 +218,7 @@ def onboarding_step3_platform_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="📱 iPhone", callback_data="onboard:platform:iphone")
     builder.button(text="🤖 Android", callback_data="onboard:platform:android")
     builder.button(text="💻 Компьютер", callback_data="onboard:platform:pc")
+    builder.button(text="📋 Ключ текстом", callback_data="vpn:plain_key")
     builder.button(text="← Назад", callback_data="onboard:back")
     builder.adjust(1)
     return builder.as_markup()
