@@ -1,9 +1,37 @@
 #!/usr/bin/env python3
 """Build VLESS Reality URI for Russia relay entry (copy to Streisand / v2rayTun)."""
 
-import argparse
+from __future__ import annotations
 
-from netagent_common.vless_uri import build_vless_reality_uri
+import argparse
+from urllib.parse import quote
+
+try:
+    from netagent_common.vless_uri import build_vless_reality_uri
+except ModuleNotFoundError:
+    def build_vless_reality_uri(
+        uuid: str,
+        host: str,
+        label: str,
+        *,
+        public_key: str,
+        short_id: str,
+        sni: str = "www.wikipedia.org",
+        flow: str = "xtls-rprx-vision",
+        port: int = 443,
+    ) -> str:
+        params = {
+            "encryption": "none",
+            "type": "tcp",
+            "security": "reality",
+            "pbk": public_key,
+            "flow": flow,
+            "sni": sni,
+            "fp": "chrome",
+            "sid": short_id,
+        }
+        query = "&".join(f"{key}={quote(str(value), safe='')}" for key, value in params.items())
+        return f"vless://{uuid}@{host}:{port}?{query}#{quote(label)}"
 
 
 def main() -> None:
