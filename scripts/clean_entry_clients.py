@@ -112,6 +112,12 @@ def make_backup(path: Path) -> Path:
 
 def restore_backup(backup: Path, path: Path) -> None:
     shutil.copy2(backup, path)
+    _ensure_world_readable(path)
+
+
+def _ensure_world_readable(path: Path) -> None:
+    """Xray systemd unit runs as User=nobody — config must be world-readable."""
+    path.chmod(0o644)
 
 
 def main() -> int:
@@ -236,6 +242,7 @@ def main() -> int:
         temp_path = Path(tmp.name)
 
     temp_path.replace(path)
+    _ensure_world_readable(path)
 
     result = subprocess.run(test_cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
