@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.billing import (
+    AccountStatusView,
     BillingClient,
     BillingError,
     NoSubscriptionError,
