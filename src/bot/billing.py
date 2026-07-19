@@ -348,7 +348,12 @@ class BillingClient:
                 .options(joinedload(Device.vpn_node))
             )
             if existing:
-                return self._device_view(existing, preset)
+                return self._device_view(
+                    existing,
+                    preset,
+                    telegram_id=telegram_id,
+                    plan_slug=subscription.plan.slug,
+                )
 
             expired = session.scalar(
                 select(Device)
@@ -461,7 +466,7 @@ class BillingClient:
         device.suspended_at = None
         device.suspended_reason = None
         provisioner = self._provisioner_for_node(device.vpn_node)
-        agent_uri = provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
+        provisioner.provision_key(email=device.xray_email, uuid=device.uuid)
         try:
             session.commit()
         except Exception:
@@ -472,19 +477,15 @@ class BillingClient:
                 pass
             raise
         session.refresh(device)
-        view = self._device_view(device, preset)
-        if agent_uri:
-            return DeviceView(
-                id=view.id,
-                slug=view.slug,
-                emoji=view.emoji,
-                display_name=view.display_name,
-                xray_uuid=view.xray_uuid,
-                xray_email=view.xray_email,
-                connection_uri=agent_uri,
-                created_at=view.created_at,
-            )
-        return view
+        user = session.get(User, subscription.user_id)
+        plan = subscription.plan or session.get(Plan, subscription.plan_id)
+        plan_slug = plan.slug if plan else "vpn"
+        return self._device_view(
+            device,
+            preset,
+            telegram_id=user.telegram_id if user else None,
+            plan_slug=plan_slug,
+        )
 
     def _create_vpn_device(
         self,
@@ -504,9 +505,16 @@ class BillingClient:
 
         xray_uuid = str(uuid4())
         xray_email = self._vpn_email(user, preset.email_suffix)
+        plan = subscription.plan or session.get(Plan, subscription.plan_id)
+        plan_slug = plan.slug if plan else "vpn"
+        link_label = self._vless_link_label(
+            telegram_id=user.telegram_id,
+            user_id=user.id,
+            plan_slug=plan_slug,
+        )
         provisioner = self._provisioner_for_node(node)
-        agent_uri = provisioner.provision_key(email=xray_email, uuid=xray_uuid)
-        connection_uri = agent_uri or self._build_connection_uri(xray_uuid, preset.title, node)
+        provisioner.provision_key(email=xray_email, uuid=xray_uuid)
+        connection_uri = self._build_connection_uri(xray_uuid, link_label, node)
 
         device = Device(
             user_id=subscription.user_id,
@@ -539,7 +547,14 @@ class BillingClient:
             created_at=device.created_at,
         )
 
-    def _device_view(self, device: Device, preset) -> DeviceView:
+    def _device_view(
+        self,
+        device: Device,
+        preset,
+        *,
+        telegram_id: int | None = None,
+        plan_slug: str | None = None,
+    ) -> DeviceView:
         return DeviceView(
             id=device.id,
             slug=device.device_slug,
@@ -547,12 +562,33 @@ class BillingClient:
             display_name=device.device_name,
             xray_uuid=device.uuid,
             xray_email=device.xray_email,
-            connection_uri=self._connection_uri_for_device(device),
+            connection_uri=self._connection_uri_for_device(
+                device,
+                telegram_id=telegram_id,
+                plan_slug=plan_slug,
+            ),
             created_at=device.created_at,
         )
 
-    def _connection_uri_for_device(self, device: Device) -> str:
-        return self._build_connection_uri(device.uuid, device.device_name, device.vpn_node)
+    def _connection_uri_for_device(
+        self,
+        device: Device,
+        *,
+        telegram_id: int | None = None,
+        plan_slug: str | None = None,
+    ) -> str:
+        label = self._vless_link_label(
+            telegram_id=telegram_id,
+            user_id=device.user_id,
+            plan_slug=plan_slug or "vpn",
+        )
+        return self._build_connection_uri(device.uuid, label, device.vpn_node)
+
+    @staticmethod
+    def _vless_link_label(*, telegram_id: int | None, user_id: int, plan_slug: str) -> str:
+        """ASCII profile name for VLESS URI fragment (safe to copy from Telegram)."""
+        user_part = str(telegram_id) if telegram_id else f"u{user_id}"
+        return f"{user_part}_{plan_slug}"
 
     def remove_device(self, telegram_id: int, device_id: int) -> None:
         with self._session_factory() as session:
@@ -585,11 +621,15 @@ class BillingClient:
                     User.telegram_id == telegram_id,
                     Device.status == "active",
                 )
-                .options(joinedload(Device.vpn_node))
+                .options(
+                    joinedload(Device.vpn_node),
+                    joinedload(Device.subscription).joinedload(Subscription.plan),
+                )
             )
             if not device:
                 return None
             preset = get_device_preset(device.device_slug)
+            plan_slug = device.subscription.plan.slug if device.subscription and device.subscription.plan else "vpn"
             return DeviceView(
                 id=device.id,
                 slug=device.device_slug,
@@ -597,7 +637,11 @@ class BillingClient:
                 display_name=device.device_name,
                 xray_uuid=device.uuid,
                 xray_email=device.xray_email,
-                connection_uri=self._connection_uri_for_device(device),
+                connection_uri=self._connection_uri_for_device(
+                    device,
+                    telegram_id=telegram_id,
+                    plan_slug=plan_slug,
+                ),
                 created_at=device.created_at,
             )
 
@@ -675,6 +719,7 @@ class BillingClient:
             .options(joinedload(Device.vpn_node))
             .order_by(Device.created_at)
         ).all()
+        plan_slug = subscription.plan.slug
         return tuple(
             DeviceView(
                 id=device.id,
@@ -683,7 +728,11 @@ class BillingClient:
                 display_name=device.device_name,
                 xray_uuid=device.uuid,
                 xray_email=device.xray_email,
-                connection_uri=self._connection_uri_for_device(device),
+                connection_uri=self._connection_uri_for_device(
+                    device,
+                    telegram_id=telegram_id,
+                    plan_slug=plan_slug,
+                ),
                 created_at=device.created_at,
             )
             for device in devices
@@ -921,6 +970,7 @@ class BillingClient:
             subscription = self._get_active_subscription_for_user(session, user_id, line="vpn")
             if not subscription:
                 raise NoSubscriptionError("Сначала выберите тариф.")
+            user = session.get(User, user_id)
             existing = session.scalar(
                 select(Device)
                 .where(
@@ -931,7 +981,12 @@ class BillingClient:
                 .options(joinedload(Device.vpn_node))
             )
             if existing:
-                return self._device_view(existing, preset)
+                return self._device_view(
+                    existing,
+                    preset,
+                    telegram_id=user.telegram_id if user else None,
+                    plan_slug=subscription.plan.slug,
+                )
 
             expired = session.scalar(
                 select(Device)
@@ -1045,6 +1100,9 @@ class BillingClient:
             .options(joinedload(Device.vpn_node))
             .order_by(Device.created_at)
         ).all()
+        user = session.get(User, user_id)
+        telegram_id = user.telegram_id if user else None
+        plan_slug = subscription.plan.slug
         return tuple(
             DeviceView(
                 id=device.id,
@@ -1053,7 +1111,11 @@ class BillingClient:
                 display_name=device.device_name,
                 xray_uuid=device.uuid,
                 xray_email=device.xray_email,
-                connection_uri=self._connection_uri_for_device(device),
+                connection_uri=self._connection_uri_for_device(
+                    device,
+                    telegram_id=telegram_id,
+                    plan_slug=plan_slug,
+                ),
                 created_at=device.created_at,
             )
             for device in devices

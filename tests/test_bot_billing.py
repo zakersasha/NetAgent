@@ -45,6 +45,8 @@ def test_ensure_vpn_key_creates_single_key(billing_client: BillingClient) -> Non
     assert key.xray_email == "123_vpn"
     assert key.xray_uuid == again.xray_uuid
     assert "pbk=" in key.connection_uri
+    assert key.connection_uri.endswith("123_connect")
+    assert "%D0%" not in key.connection_uri
 
 
 def test_regenerate_vpn_key_changes_uuid(billing_client: BillingClient) -> None:
@@ -175,7 +177,8 @@ def test_renewal_restores_same_vpn_key(billing_client: BillingClient) -> None:
     restored = billing_client.ensure_vpn_key(telegram_id=456)
 
     assert restored.xray_uuid == first.xray_uuid
-    assert restored.connection_uri == first.connection_uri
+    assert restored.connection_uri.endswith("456_connect_plus")
+    assert first.connection_uri.endswith("456_connect")
 
 
 def _set_subscription_expired(billing_client: BillingClient, telegram_id: int) -> None:
